@@ -35,13 +35,13 @@ unsigned long int t_ref;
 /////////////////////////// SERVO PARAMETERS ///////////////////////////
 
 /// PWM scale for position feedback from servo ///
-int maximumPWMFeedback = 1502; //1970;
-int minimumPWMFeedback = 480; //635;
+int maximumPWMFeedback = 1950; //1972 highest measured;
+int minimumPWMFeedback = 635; //625 lowest measured;
 double stepPWMFeedback = (float)(maximumPWMFeedback - minimumPWMFeedback) / 1440.0; //360 degree in quarter degree precision -> 1440 steps
 
 /// PWM scale for position output to servo ///
-int maximumPWMOutput = 1502;
-int minimumPWMOutput = 480;
+int maximumPWMOutput = 1400; //1475 highest working, but sometimes errors
+int minimumPWMOutput = 500; //460 lowest working, but sometimes errors
 double stepPWMOutput = (float)(maximumPWMOutput - minimumPWMOutput) / 1440.0; //360 degree in quarter degree precision -> 1440 steps
 
 /// scale for velocity output to servo ///
@@ -55,7 +55,7 @@ double initialDeg = -1;
 int angularChangeReceived;
 int angularChangeFeedback;
 
-int lastDeg;
+int lastDeg = 2;
 /////////////////////////// FEEDBACK VARIABLES ///////////////////////////
 
 /// servo position as 'pwm' value (see _feedback for scale above) ///
@@ -129,12 +129,14 @@ void readSerial() //receive characterizing prefix (+ length in 2 digit Hex, with
     strReceived = Serial.readStringUntil('\n');    
     char command = strReceived[0];
     if(command == RECEIVE_ANGLE_CMD){
+      Serial.println('a');
       if(firstTime){
         enableServo = 1;
         firstTime = 0;
       }
       readAngularChange();
     } else if(command == RECEIVE_FEEDBACK_REQUEST){
+      Serial.println('f');
        // FOR THE MOMENT THIS ONLY SUPPORTS 10 OPTIONS
        
       int receivedID = int(strReceived.charAt(1)) - '0';
@@ -184,24 +186,25 @@ void updateDestinationDeg(){//updates the destination degree from the serial mon
     initialDeg = servoDeg;
   }
 
-  if (stillmode == false) // stillmode is used to keep end-effector under tension
+  if (angularChangeReceived != 0) 
   {
     destinationDeg = servoDeg + angularChangeReceived; // update the destination degree by using current position plus requested angular change
+    Serial.println(servoDeg);
+    Serial.println(angularChangeReceived);
+    Serial.println(destinationDeg);
+    angularChangeReceived = 0;
   }
-  else if (servoDeg >= (initialDeg - 1))
-  {
-    destinationDeg = initialDeg - 2; // if stillmode is true, the servo pulls back by two degrees, keeping the end-effector under tension
-  }
+  
 }
 
 void limitDegree(){//keeps the destinationDegree within 0 - 360 degree, e.g. -100 for example 375 will map to 15, -100 will map to 260 
   if (destinationDeg < 0) //negative degrees should be mapped from 360 downwards
   {
-    destinationDeg = (360 -  fabs(fmod(destinationDeg, 360))); //the modulo ensures a value between -1 and -360, then subtracting the absolute value of this from 360
+    destinationDeg = (1440 -  fabs(fmod(destinationDeg, 1440))); //the modulo ensures a value between -1 and -360, then subtracting the absolute value of this from 360
   }
-  if (destinationDeg > 360);  //values above 360 will be mapped to 0 to 360
+  if (destinationDeg > 1440);  //values above 360 will be mapped to 0 to 360
   {
-    destinationDeg = fmod(destinationDeg, 360); //modulo takes out all integral multiples of 360 to achieve correct mapping
+    destinationDeg = fmod(destinationDeg, 1440); //modulo takes out all integral multiples of 360 to achieve correct mapping
   }
 }
 
@@ -209,12 +212,12 @@ void crossing(){// ding
   int servoDeg = readPositionFeedback();
   if (left == true)
   {
-    if (((destinationDeg >= 1) && (destinationDeg <= 15)) && (servoDeg >= 340))
+    if (((destinationDeg >= 1) && (destinationDeg <= 60)) && (servoDeg >= 1360))
     {
       cross = true;
       crossPulse = clockwise_min;
     }
-    if ((servoDeg >= 2) && (servoDeg <= 20))
+    if ((servoDeg >= 8) && (servoDeg <= 80))
     {
       cross = false;
       left = false;
@@ -222,12 +225,12 @@ void crossing(){// ding
   }
   if (right == true)
   {
-    if (((destinationDeg <= 359) && (destinationDeg >= 345)) && (servoDeg <= 20))
+    if (((destinationDeg <= 1439) && (destinationDeg >= 1380)) && (servoDeg <= 80))
     {
       cross = true;
       crossPulse = anticlockwise_min;
     }
-    if ((servoDeg <= 359) && (servoDeg >= 340))
+    if ((servoDeg <= 1439) && (servoDeg >= 1360))
     {
       cross = false;
       right = false;
@@ -314,52 +317,47 @@ void control() {// Control basically enhance the signal for motor to achieve the
 }
 
 void sendFeedback(){
-  int currentDeg = readPositionFeedback();
-  char* charS1;
-  int intS1;
+  /*
+  *general idea: first byte of 2-digit hex is manipulated to signal ccw or cw rotation
+  *if first hex contains 0-9, A-F (ASCII 48-57, 65-70) -> clockwise
+  *if first hex contains P-Y, a-f (ASCII 80-89, 97-102) -> counterclockwise
+  *
+  *
+  */
+  
+  int currentDeg = readPositionFeedback(); //calculates the changed in detected angle since last time feedback was sent
   angularChangeFeedback = currentDeg - lastDeg;
-  
-  charS1 = itoa(
-  
-  if(angularChangeFeedback > 0){
-  
-    intS1 = angularChangeFeedback % 16;
+  boolean positive = 1;  
     
-  
-  char send[2];
-  
-
-
-
-  //convert into 2 digit HEX
-  
   if(angularChangeFeedback < 0){
-    //manipulate first digit (+ASCII_DIFFERENCE
+      positive = 0;
+      angularChangeFeedback = abs(angularChangeFeedback);
   }
   
-  Serial.print(NANO_ID); //as first bzte of string send?
-  //print manipulated 2 digit hex
+  char feedback[2];
+  itoa(angularChangeFeedback, &feedback[0], 16); //converts into hex, format: 0-9, a-f
   
+  if(positive){
+    /* out of 4 cases, only two have to be handled here, the others are:
+    *  positive and standard conversion letters 0-9 -> not to be changed
+    *  negative and standard conversion letters a-f -> not to be changed
+    */
+    if(feedback[0] > '9'){ //this case represents letters a-f, but with a positive sign
+      feedback[0] -= ASCII_DIFFERENCE; //A-F after subtraction
+    }
+  } else if (feedback[0] < 'A'){ //this case represents 0-9, but with negative sign
+    feedback[0] += ASCII_DIFFERENCE; //P-Y after addition
+  }
+  
+  Serial.println(lastDeg);
+  Serial.println(currentDeg);
   
   lastDeg = currentDeg;
   
-  
-  char t[LENGTH_HEX_NUM_DIGITS];
-  char s[LENGTH_HEX_NUM_DIGITS+1];
-  // Pad the 0s
-  //itoa(l_rounded,t,16);
-  // Find the first 0 value
-  int j = strlen(t);
-  // Now rearrange by shifting the values across
-  for(int k = 0; k < LENGTH_HEX_NUM_DIGITS; k++){
-    if(k < j){
-      s[LENGTH_HEX_NUM_DIGITS - (j-k)] = t[k];
-    } else {
-      s[k-j] = '0';
-    }      
-  }
-  s[LENGTH_HEX_NUM_DIGITS] = '\0';
-  Serial.println(s);
+  Serial.print(NANO_ID); //as first byte of string send?
+  Serial.print(feedback[0]);
+  Serial.println(feedback[1]);
+  Serial.println();
   Serial.flush();
 }
 
