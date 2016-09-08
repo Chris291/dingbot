@@ -336,7 +336,7 @@ void sendFeedback(){
   } else positive = 1;
   
   char sendFeedback[2];
-  itoa(angularChangeFeedback, &feedback[0], 16); //converts into hex, format: 0-9, a-f
+  itoa(angularChangeFeedback, &sendFeedback[0], 16); //converts into hex, format: 0-9, a-f
   
   if(positive){
     /* out of 4 cases, only two have to be handled here, the others are:
