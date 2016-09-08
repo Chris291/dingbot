@@ -1,15 +1,15 @@
 /**
-   MEGA
-
-   send via TX1
-   receive via digital pins
-
-   Not all pins on the Mega and Mega 2560 support change interrupts,
-   so only the following can be used for RX:
-   10, 11, 12, 13, 14, 15, 50, 51, 52, 53,
-   A8 (62), A9 (63), A10 (64), A11 (65),
-   A12 (66), A13 (67), A14 (68), A15 (69).
-*/
+ * MEGA
+ * 
+ * send via TX1
+ * receive via digital pins
+ * 
+ * Not all pins on the Mega and Mega 2560 support change interrupts,
+ * so only the following can be used for RX:
+ * 10, 11, 12, 13, 14, 15, 50, 51, 52, 53,
+ * A8 (62), A9 (63), A10 (64), A11 (65),
+ * A12 (66), A13 (67), A14 (68), A15 (69).
+ */
 
 #include <SoftwareSerial.h>
 
@@ -20,148 +20,145 @@
 #define TIME_STEP 1.0/FEEDBACK_FREQUENCY
 #define NUMBER_CONNECTED_NANOS 8
 
-bool ledState = LOW;
+#define HEX_DIGITS_ANGLE 2
+#define HEX_DIGITS_LENGTH 4
+
+#define ASCII_MIDDLE_POINT 75 //breakpoint between cw(0-9, A-F) and ccw (P-Y, a-f)
+#define ASCII_DIFFERENCE 32 //difference for conversion between cw and ccw
+
+#define RECEIVE_ANGLE 'a'
+
+#define RADIUS 200 //spool, 20mm in 0.1mm precision
+
 unsigned long int t_ref;
-unsigned long int loopTime;
-int count = 0;
-String printString = "l00000001001000110100010101100111";
-char testByte = '0';
 
-SoftwareSerial serialNano[8] = {SoftwareSerial (10, 22), // RX, TX
-                                SoftwareSerial (11, 23), //1
-                                SoftwareSerial (12, 24), //2
-                                SoftwareSerial (62, 25), //3*
-                                SoftwareSerial (63, 26), //4
-                                SoftwareSerial (64, 27), //5
-                                SoftwareSerial (50, 28), //6
-                                SoftwareSerial (51, 29)  //7
-                               };
+SoftwareSerial serialNano[8] = {
+  SoftwareSerial (10, 22), // RX, TX
+  SoftwareSerial (11, 23), //1
+  SoftwareSerial (12, 24), //2
+  SoftwareSerial (62, 25), //3*
+  SoftwareSerial (63, 26), //4
+  SoftwareSerial (64, 27), //5
+  SoftwareSerial (50, 28), //6
+  SoftwareSerial (51, 29)  //7
+  };
 
-void setup() {
-  Serial.begin(115200);  //USB
-  Serial1.begin(115200); //broadcast
-  for (int i = 0; i < NUMBER_CONNECTED_NANOS; i++) { //all the softwareSerials for arduino nano
-    serialNano[i].begin(115200);
+  void setup() {
+    Serial.begin(115200);  //USB
+    Serial1.begin(115200); //broadcast
+    for (int i = 0; i < NUMBER_CONNECTED_NANOS; i++) { //all the softwareSerials for arduino nano
+      serialNano[i].begin(115200);
+    }
+    Serial.println("Mega is online."); 
+    Serial.flush();
+    t_ref = millis();
+
+    /*
+    *  Initialization needed:
+     *    initialLength
+     *    initialLengthFeedback
+     */
   }
-
-  //LED for debug uses
-  pinMode(13, OUTPUT);
-  digitalWrite(13, LOW);
-
-  Serial.println("Mega is online."); 
-  Serial.flush();
-  //OCR0A = 0xAF;
-  //TIMSK0 |= _BV(OCIE0A);
-  //setup_timer1();
-  t_ref = millis();
-}
-
 /*
   wait for command from MatLab, and pass the comand to nanos
-*/
-String command;
-String request;
-String feedback;
-String combinedFeedback;
+ */
+String receivedCommand;
+String receivedFeedback;
+String sendFeedback; //easier to have this as char[]?
+unsigned int lastLength[NUMBER_CONNECTED_NANOS]; //unsigned int has 2 bytes, range 0 - 65535
+unsigned int lastLengthFeedback[NUMBER_CONNECTED_NANOS]; //with .1 mm precision, this equals ~6.5m
+
 void loop() {
   if (Serial.available() > 0) {  //USB
-    command = Serial.readStringUntil('\n');
-    Serial1.println(command);    //broadcast command to nanos via Serial1
-    Serial1.flush();
+    receivedCommand = Serial.readStringUntil('\n');
   }
 
   if((millis() - t_ref) > TIME_STEP * 1000){
     t_ref = millis();
-    count++;
-    if(count > 2000){
-      Serial.println("STOP");
-      Serial.flush();
-    }else if(count % 10 == 1){
-      //Serial.println(count - 1);
-      //Serial.flush();
-      //Serial.println("LENGTH_CHANGE");
-      //Serial.flush();
-      if(testByte == '9'){
-        testByte = '0';
-      } else {
-        testByte++;
-      }
-      printString[3] = testByte;
-      Serial1.println(printString);      
+
+    /// REQUEST FEEDBACK FROM NANOS
+    char feedbackNano[HEX_DIGITS_ANGLE];
+    boolean positive = 1;
+    int angularChangeReceived;
+    unsigned int lengthFeedback;
+    char feedbackMega[HEX_DIGITS_LENGTH];
+
+    for (int i = 0; i < NUMBER_CONNECTED_NANOS; i++) {
+      serialNano[i].listen();
+      Serial1.println("f" + String(i)); //concatenates f and number of nano - sends feedback requests to the nanos
       Serial1.flush();
-    } else {
-      for (int i = 0; i < NUMBER_CONNECTED_NANOS; i++) {
-        serialNano[i].listen();
+      if (serialNano[i].available() > 0) {
+        receivedFeedback = serialNano[i].readStringUntil('\n'); 
+        for (int j=0; j<HEX_DIGITS_ANGLE; j++){
+          feedbackNano[j] = receivedFeedback[j+1]; //omits 'f' as feedback prefix
+        }
+        if(feedbackNano[0] > ASCII_MIDDLE_POINT){
+          feedbackNano[0] -= ASCII_DIFFERENCE; //changes [0] to 0-9, A-F -> can be handled by hex conversion
+          positive = 0; //detects sign of manipulated ASCII
+        } 
+        else positive = 1;
+
+        if(positive){
+          angularChangeReceived = strtol(feedbackNano, 0, 16);
+        } 
+        else angularChangeReceived = -strtol(feedbackNano, 0, 16); //uses sign to determine integer value from hex conversion
         
-        request = "f" + String(i);
-        Serial1.println(request); 
-        Serial1.flush();
-        //Serial.println("broadcasted: " + request);  //for debugging
-        //Serial.flush();                             //for debugging
-        
-        if (serialNano[i].available() > 0) {
-          feedback = serialNano[i].readStringUntil('\n');
-          ledState = !ledState;           //for debugging
-          digitalWrite(13, ledState);     //for debugging
-          //Put feedback into certain place inside combinedFeedback, corresponding to the Nano ID (to-do!)
-          //Serial.println("From Nano" + String(i) + ":" + feedback);  //for debugging: pass Nano feedback to computer
-          //Serial.flush();                                            //for debugging
-          
-        } //if a nano gives no feedback, do nothing(keep the last feedback value).
+        lengthFeedback = lastLengthFeedback[i] + ((float)angularChangeReceived * (M_PI*RADIUS)) / 180.0; //converts to cable length
+        lastLengthFeedback[i] = lengthFeedback;
+        itoa(lengthFeedback, &feedbackMega[0], 16); //converts to hex to send it to MATLAB
+        for(int j=0; j < HEX_DIGITS_LENGTH; j++){  //fills sendFeedback array at right position, no conversion necessary
+          sendFeedback[HEX_DIGITS_LENGTH*i + j] = feedbackMega[j]; //any prefix while sending to MATLAB?
+        }
+      } 
+      //if a nano gives no feedback, do nothing(keep the last feedback value in the combinedFeedback)
+    }
+    Serial.println(sendFeedback);
+    Serial.flush();
+
+    ///SEND RECEIVED COMMAND TO NANOS
+    char sendCommand[HEX_DIGITS_ANGLE * NUMBER_CONNECTED_NANOS];
+    int lengthChange;
+    int angleChange;
+    char commandNano[HEX_DIGITS_ANGLE];
+
+    sendCommand[0] = RECEIVE_ANGLE;
+    for(int i=0; i < NUMBER_CONNECTED_NANOS; i++){
+      char tmp[HEX_DIGITS_LENGTH];
+      for(int j=0; j < HEX_DIGITS_LENGTH; i++){
+        tmp[j] = receivedCommand[HEX_DIGITS_LENGTH * i + j + 1]; //HEX_DIGITS_LENGTH*i gives position in array for respective ID, +1 omits command prefix  
+      }
+      lengthChange = strtol(tmp, 0, 16) - lastLength[i]; //strtol returns long int, lastLength is unsigned int (4byte - 2byte), changes will not be >int_max
+      lastLength[i] += lengthChange; //update lastlength for next command
+      if(lengthChange < 0){
+        positive = 0;
+        lengthChange = abs(lengthChange);
+      } 
+      else positive = 1;
+      angleChange = ((float)lengthChange / (M_PI*RADIUS)) * 180.0;
+      itoa(angleChange, &commandNano[0], 16);
+      if(positive){
+        /* out of 4 cases, only two have to be handled here, the others are:
+         *  positive and standard conversion letters 0-9 -> not to be changed
+         *  negative and standard conversion letters a-f -> not to be changed
+         */
+        if(commandNano[0] > '9'){ //this case represents letters a-f, but with a positive sign
+          commandNano[0] -= ASCII_DIFFERENCE; //A-F after subtraction
+        }
+      } 
+      else if (commandNano[0] < 'A'){ //this case represents 0-9, but with negative sign
+        commandNano[0] += ASCII_DIFFERENCE; //P-Y after addition
+      }
+      for(int j=0; j < HEX_DIGITS_ANGLE; j++){
+        sendCommand[HEX_DIGITS_ANGLE * i + j + 1] = commandNano[j];      
       }
     }
-
-  //loopTime = millis() - t_ref;   //for debugging
-  //Serial.println(loopTime);      //for debugging
-  //Serial.flush();                //for debugging
-    
+    Serial1.println(sendCommand);
+    Serial1.flush();
   }
 }
 
-/*
-   Periodically requests feedback from the nanos, collects and combine them, and pass to MatLab
-*/
 
-/*ISR(TIMER1_COMPA_vect) {
-  //unsigned long int t_0 = micros();
-  for (int i = 0; i < NUMBER_CONNECTED_NANOS; i++) {
-    serialNano[i].listen();
-    
-    request = "f" + String(i);
-    Serial1.println(request); 
-    Serial1.flush();
-    Serial.println("broadcasted: " + request);  //for debugging
-    Serial.flush();                             //for debugging
-    
-    if (serialNano[i].available() > 0) {
-      feedback = serialNano[i].readStringUntil('\n');
-      ledState = !ledState;           //for debugging
-      digitalWrite(13, ledState);     //for debugging
-      //Put feedback into certain place inside combinedFeedback, corresponding to the Nano ID (to-do!)
-      Serial.println("From Nano" + String(i) + ":" + feedback);  //for debugging: pass Nano feedback to computer
-      Serial.flush();                                            //for debugging
-      
-    } //if a nano gives no feedback, do nothing(keep the last feedback value).
-  }
-//  Serial.println(combinedFeedback);  //send combinedFeedback to MatLab via USB
-//  Serial.flush();
-}*/
 
-/*void setup_timer1() {  // initialize Timer1
-  cli();          // disable global interrupts
-  TCCR1A = 0;     // set entire TCCR1A register to 0
-  TCCR1B = 0;     // same for TCCR1B
-  // set compare match register to desired timer count:
-  OCR1A = (15624 / FEEDBACK_FREQUENCY);
-  // turn on CTC mode:
-  TCCR1B |= (1 << WGM12);
-  // Set CS10 and CS12 bits for 1024 prescaler:
-  TCCR1B |= (1 << CS10);
-  TCCR1B |= (1 << CS12);
-  // enable timer compare interrupt:
-  TIMSK1 |= (1 << OCIE1A);
-  sei();          // enable global interrupts
-}*/
 
 
 
