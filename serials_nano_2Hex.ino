@@ -55,7 +55,7 @@ double initialDeg = -1;
 int angularChangeReceived;
 int angularChangeFeedback;
 
-int lastDeg = 2;
+
 /////////////////////////// FEEDBACK VARIABLES ///////////////////////////
 
 /// servo position as 'pwm' value (see _feedback for scale above) ///
@@ -324,17 +324,18 @@ void sendFeedback(){
   *
   *
   */
+  static int lastDeg;
+  static int currentDeg;
+  lastDeg = currentDeg;
+  currentDeg = readPositionFeedback(); //calculates the changed in detected angle since last time feedback was sent
   
-  int currentDeg = readPositionFeedback(); //calculates the changed in detected angle since last time feedback was sent
   angularChangeFeedback = currentDeg - lastDeg;
-  boolean positive = 1;  
-    
   if(angularChangeFeedback < 0){
       positive = 0;
       angularChangeFeedback = abs(angularChangeFeedback);
-  }
+  } else positive = 1;
   
-  char feedback[2];
+  char sendFeedback[2];
   itoa(angularChangeFeedback, &feedback[0], 16); //converts into hex, format: 0-9, a-f
   
   if(positive){
@@ -342,21 +343,17 @@ void sendFeedback(){
     *  positive and standard conversion letters 0-9 -> not to be changed
     *  negative and standard conversion letters a-f -> not to be changed
     */
-    if(feedback[0] > '9'){ //this case represents letters a-f, but with a positive sign
-      feedback[0] -= ASCII_DIFFERENCE; //A-F after subtraction
+    if(sendFeedback[0] > '9'){ //this case represents letters a-f, but with a positive sign
+      sendFeedback[0] -= ASCII_DIFFERENCE; //A-F after subtraction
     }
-  } else if (feedback[0] < 'A'){ //this case represents 0-9, but with negative sign
-    feedback[0] += ASCII_DIFFERENCE; //P-Y after addition
+  } else if (sendFeedback[0] < 'A'){ //this case represents 0-9, but with negative sign
+    sendFeedback[0] += ASCII_DIFFERENCE; //P-Y after addition
   }
-  
-  Serial.println(lastDeg);
-  Serial.println(currentDeg);
-  
-  lastDeg = currentDeg;
+
   
   Serial.print(NANO_ID); //as first byte of string send?
-  Serial.print(feedback[0]);
-  Serial.println(feedback[1]);
+  Serial.print(sendFeedback[0]);
+  Serial.println(sendFeedback[1]);
   Serial.println();
   Serial.flush();
 }
