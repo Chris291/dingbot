@@ -20,7 +20,7 @@
 #define LENGTH_HEX_NUM_DIGITS 2
 #define Kp 1.0 // Gain for proportional controller
 #define Ki 0.5 // Gain for integrator
-
+#define DELTA 10 // The quarter degree as freezing regions at crossing area
 #define RECEIVE_ANGLE_CMD 'a'
 #define RECEIVE_FEEDBACK_REQUEST 'f'
 
@@ -31,7 +31,6 @@
 /////////////////////////// DEBUGGING AND TIMING VARIABLES //////////////
 
 unsigned long int t_ref;
-
 /////////////////////////// SERVO PARAMETERS ///////////////////////////
 
 /// PWM scale for position feedback from servo ///
@@ -45,10 +44,10 @@ int minimumPWMOutput = 500; //460 lowest working, but sometimes errors
 double stepPWMOutput = (float)(maximumPWMOutput - minimumPWMOutput) / 1440.0; //360 degree in quarter degree precision -> 1440 steps
 
 /// scale for velocity output to servo ///
-int clockwise_max = 2400;
-int clockwise_min = 2090;
-int anticlockwise_max = 1650;
-int anticlockwise_min = 1850;
+int clockwise_max = 2183;
+int clockwise_min = 2083;
+int anticlockwise_max = 1788;
+int anticlockwise_min = 1883;
 
 double initialDeg = -1;
 
@@ -80,6 +79,7 @@ void sendFeedback();
 void readSerial();
 int readPositionFeedback();
 void crossing();
+void quitCrossing();
 void ctrl_motor();
 void mapping();
 void limitDegree();
@@ -97,7 +97,7 @@ boolean left = 0;
 boolean right = 0;
 boolean cross = 0;
 int crossPulse = 0;
-
+boolean check = 0;
 /// control for errors ///
 double ref, ITerm, lastErr, dInput;
 unsigned long lastTime;
@@ -114,7 +114,11 @@ void loop() {
     readPositionFeedback(); //reads position feedback from servo and calculates angle
     updateDestinationDeg(); //updates the destination degree from the serial monitor (if no input  readSerial();
     limitDegree(); //keeps the destinationDegree within 0 - 360 degree
+    if (cross ==true)
+      {
     crossing(); //
+    quitCrossing();
+    }
     if(enableServo) //if input has been received, transmission to servo is enabled
     {
       ctrl_motor(); //transmits the output signal towards the motor
@@ -196,52 +200,90 @@ void updateDestinationDeg(){//updates the destination degree from the serial mon
   }
   
 }
-
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void limitDegree(){//keeps the destinationDegree within 0 - 360 degree, e.g. -100 for example 375 will map to 15, -100 will map to 260 
-  if (destinationDeg < 0) //negative degrees should be mapped from 360 downwards
+  if (destinationDeg < (-DELTA)) //negative degrees should be mapped from 360 downwards
   {
     destinationDeg = (1440 -  fabs(fmod(destinationDeg, 1440))); //the modulo ensures a value between -1 and -360, then subtracting the absolute value of this from 360
+    cross = true;
   }
-  if (destinationDeg > 1440);  //values above 360 will be mapped to 0 to 360
+  if (destinationDeg > (1440 + DELTA))  //values above 360 will be mapped to 0 to 360
   {
-    destinationDeg = fmod(destinationDeg, 1440); //modulo takes out all integral multiples of 360 to achieve correct mapping
+    destinationDeg = fmod(destinationDeg, 1440); //modulo takes out all integral multiples of 360 to achieve correct mapping    //Serial.println("crossLeft");
+    //Serial.println(positive);
+    cross = true;
+  }
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void crossing(){
+  int Currentpos = readPositionFeedback();
+  if(check !=1){
+  if (positive == 0) // From right
+    {  /*
+      int deltaDegree = 1440 - (destinationDeg - Currentpos);
+      Serial.println(deltaDegree);
+      if(deltaDegree < 50)
+        {
+        crossPulse = anticlockwise_min;
+        }
+      else if (deltaDegree > 400)
+        {
+        crossPulse = anticlockwise_max;  
+        }
+      else
+        {
+        crossPulse = anticlockwise_min - deltaDegree*0.2857 ;  //0.667 is the ratio between 350 steps in deltaDegree and 100steps between max and min speed
+        }
+        check = 1;
+        */
+        crossPulse = anticlockwise_max;
+    }
+  else if (positive == 1) // From left
+    { /*
+      int deltaDegree = 1440 + (destinationDeg - Currentpos);
+      Serial.println(deltaDegree);
+      if(deltaDegree < 50)
+        {
+        crossPulse = clockwise_min;
+        }
+      else if (deltaDegree > 400)
+        {
+        crossPulse = clockwise_max;  
+        }
+      else
+        {
+        crossPulse = clockwise_min + deltaDegree*0.2857;  
+        }
+        check = 1;
+        */
+      crossPulse = clockwise_max; 
+    }
   }
 }
 
-void crossing(){// ding
-  int servoDeg = readPositionFeedback();
-  if (left == true)
-  {
-    if (((destinationDeg >= 1) && (destinationDeg <= 60)) && (servoDeg >= 1360))
-    {
-      cross = true;
-      crossPulse = clockwise_min;
-    }
-    if ((servoDeg >= 8) && (servoDeg <= 80))
-    {
+void quitCrossing(){
+  int Currentpos = readPositionFeedback();
+  if (positive == 0) // From right
+    {  
+      if((Currentpos < (1440 - DELTA))&&(Currentpos > 720 )){
       cross = false;
-      left = false;
+      check = 0;
+      }
     }
-  }
-  if (right == true)
-  {
-    if (((destinationDeg <= 1439) && (destinationDeg >= 1380)) && (servoDeg <= 80))
+  else if (positive == 1) // From left
     {
-      cross = true;
-      crossPulse = anticlockwise_min;
-    }
-    if ((servoDeg <= 1439) && (servoDeg >= 1360))
-    {
+      if((Currentpos > DELTA)&&(Currentpos < 720 )){
       cross = false;
-      right = false;
+      check = 0;
+      }
     }
-  }
 }
 
 void ctrl_motor(){//transmits the output signal towards the motor
   if (cross == true)//ding
   {
     servoPulse(MOTOR_PIN, crossPulse);
+    quitCrossing();
   }
   else
   {
@@ -259,7 +301,7 @@ void servoPulse(int servoPin, int pulseWidth){
 
 void mapping(){// maps the calculated destinationDeg onto the pwm_output scale
   destinationPWM = minimumPWMOutput + destinationDeg * stepPWMOutput; 
-  deadzone();
+  //deadzone();
   control();
 }
 
@@ -269,7 +311,7 @@ int inverseMapping(int pwmFeedback){
 }
 
 
-void deadzone (){//ding
+/*void deadzone (){//ding
   if ((destinationPWM >= (maximumPWMFeedback - 10)) || ((left == true) && (destinationPWM < (minimumPWMFeedback + 10))))
   {
     destinationPWM = maximumPWMOutput - 10;
@@ -296,6 +338,7 @@ void deadzone (){//ding
     right = false;
   }
 }
+*/
 
 void control() {// Control basically enhance the signal for motor to achieve the position that commanded to, consist of Proportional and integral parts.
   if ((servoPWM < destinationPWM - 30) || (servoPWM >  destinationPWM + 30))
