@@ -33,14 +33,14 @@
 unsigned long int t_ref;
 
 SoftwareSerial serialNano[8] = {
-  SoftwareSerial (10, 22), // RX, TX
-  SoftwareSerial (11, 23), //1
-  SoftwareSerial (12, 24), //2
-  SoftwareSerial (62, 25), //3*
-  SoftwareSerial (63, 26), //4
-  SoftwareSerial (64, 27), //5
-  SoftwareSerial (50, 28), //6
-  SoftwareSerial (51, 29)  //7
+  SoftwareSerial (62, 19), // RX, TX - 0
+  SoftwareSerial (63, 23), //1
+  SoftwareSerial (64, 24), //2
+  SoftwareSerial (65, 25), //3
+  SoftwareSerial (66, 26), //4
+  SoftwareSerial (67, 27), //5
+  SoftwareSerial (68, 28), //6
+  SoftwareSerial (69, 29)  //7
   };
 
   void setup() {
@@ -97,18 +97,23 @@ void loop() {
           positive = 0; //detects sign of manipulated ASCII
         } 
         else positive = 1;
-
+        //Serial.print(feedbackNano[0]);
+        //Serial.println(feedbackNano[1]);
         if(positive){
           angularChangeReceived = strtol(feedbackNano, 0, 16);
         } 
         else angularChangeReceived = -strtol(feedbackNano, 0, 16); //uses sign to determine integer value from hex conversion
-        
-        lengthFeedback = lastLengthFeedback[i] + ((float)angularChangeReceived * (M_PI*RADIUS)) / 180.0; //converts to cable length
+        //Serial.println(angularChangeReceived);
+        /*lengthFeedback = lastLengthFeedback[i] + ((float)angularChangeReceived * (M_PI*RADIUS)) / 180.0; //converts to cable length
         lastLengthFeedback[i] = lengthFeedback;
         itoa(lengthFeedback, &feedbackMega[0], 16); //converts to hex to send it to MATLAB
+        
+        */
+        itoa(angularChangeReceived, &feedbackMega[0], 16);
         for(int j=0; j < HEX_DIGITS_LENGTH; j++){  //fills sendFeedback array at right position, no conversion necessary
           sendFeedback[HEX_DIGITS_LENGTH*i + j] = feedbackMega[j]; //any prefix while sending to MATLAB?
-        }
+   
+      }
       } 
       //if a nano gives no feedback, do nothing(keep the last feedback value in the combinedFeedback)
     }
@@ -116,13 +121,13 @@ void loop() {
     Serial.flush();
 
     ///SEND RECEIVED COMMAND TO NANOS
-    char sendCommand[HEX_DIGITS_ANGLE * NUMBER_CONNECTED_NANOS];
+    char sendCommand[HEX_DIGITS_ANGLE * NUMBER_CONNECTED_NANOS + 1];
     int lengthChange;
     int angleChange;
     char commandNano[HEX_DIGITS_ANGLE];
 
     sendCommand[0] = RECEIVE_ANGLE;
-    for(int i=0; i < NUMBER_CONNECTED_NANOS; i++){
+    /*for(int i=0; i < NUMBER_CONNECTED_NANOS; i++){
       char tmp[HEX_DIGITS_LENGTH];
       for(int j=0; j < HEX_DIGITS_LENGTH; i++){
         tmp[j] = receivedCommand[HEX_DIGITS_LENGTH * i + j + 1]; //HEX_DIGITS_LENGTH*i gives position in array for respective ID, +1 omits command prefix  
@@ -140,7 +145,7 @@ void loop() {
         /* out of 4 cases, only two have to be handled here, the others are:
          *  positive and standard conversion letters 0-9 -> not to be changed
          *  negative and standard conversion letters a-f -> not to be changed
-         */
+         *
         if(commandNano[0] > '9'){ //this case represents letters a-f, but with a positive sign
           commandNano[0] -= ASCII_DIFFERENCE; //A-F after subtraction
         }
@@ -152,8 +157,25 @@ void loop() {
         sendCommand[HEX_DIGITS_ANGLE * i + j + 1] = commandNano[j];      
       }
     }
-    Serial1.println(sendCommand);
-    Serial1.flush();
+    
+    if(receivedCommand[0] == '1'){
+      sendCommand[0] = 'a';
+      for (int i = 0; i < NUMBER_CONNECTED_NANOS; i++){
+        int j = i*2;
+        sendCommand[j + 1] = '2';
+        sendCommand[j + 2] = '8';
+      }
+    }
+    else if(receivedCommand[0] == '0'){
+      for (int i = 0; i < NUMBER_CONNECTED_NANOS; i++){
+        int j = i*2;
+        sendCommand[j + 1] = 'R';
+        sendCommand[j + 2] = '8';
+      }
+    }
+    */
+    //Serial1.println(sendCommand);
+    //Serial1.flush();
   }
 }
 
