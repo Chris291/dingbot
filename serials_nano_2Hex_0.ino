@@ -144,7 +144,7 @@ void readSerial() //receive characterizing prefix (+ length in 2 digit Hex, with
       readAngularChange();
     } 
     else if(command == RECEIVE_FEEDBACK_REQUEST){
-      Serial.println('f');
+      Serial.print('f');
       // FOR THE MOMENT THIS ONLY SUPPORTS 10 OPTIONS
 
       int receivedID = int(strReceived.charAt(1)) - '0';
