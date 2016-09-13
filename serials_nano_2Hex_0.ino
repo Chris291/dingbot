@@ -32,7 +32,7 @@
 
 #define MOTOR_PIN 2
 /////////////////////////// DEBUGGING AND TIMING VARIABLES //////////////
-
+String str;
 unsigned long int t_ref;
 /////////////////////////// SERVO PARAMETERS ///////////////////////////
 
@@ -108,10 +108,12 @@ String strReceived;
 
 void setup() {
   Serial.begin(115200);
+  String str;
 }
 
 void loop() {
   readSerial();
+  /*
   if((millis() - t_ref) > TIME_STEP*1000){
     t_ref = millis();
     readPositionFeedback(); //reads position feedback from servo and calculates angle
@@ -127,13 +129,14 @@ void loop() {
       ctrl_motor(); //transmits the output signal towards the motor
     }
   }
+  */
 }
 
 
 void readSerial() //receive characterizing prefix (+ length in 2 digit Hex, with manipulation of first bit for sign)
 {
   if (Serial.available() > 0){
-    strReceived = Serial.readStringUntil('\n');    
+    strReceived = Serial.readStringUntil('\n');
     char command = strReceived[0];
     if(command == RECEIVE_ANGLE_CMD){
       Serial.println('a');
@@ -144,14 +147,16 @@ void readSerial() //receive characterizing prefix (+ length in 2 digit Hex, with
       readAngularChange();
     } 
     else if(command == RECEIVE_FEEDBACK_REQUEST){
-      Serial.print('f');
-      // FOR THE MOMENT THIS ONLY SUPPORTS 10 OPTIONS
-
-      int receivedID = int(strReceived.charAt(1)) - '0';
-      if(receivedID == NANO_ID){
-        sendFeedback();
-      }     
+    //Serial.println(millis());
+    //delayMicroseconds(1000);
+    //Serial.flush();
+    int receivedID = int(strReceived.charAt(1)) - '0';
+    if(receivedID == NANO_ID){
+     sendFeedback();
     }
+      // FOR THE MOMENT THIS ONLY SUPPORTS 10 OPTIONS
+      }     
+    
     else if(command ==  RECEIVE_TEST_REQUEST){
       Serial.print(RECEIVE_TEST_REQUEST);
       Serial.println(NANO_ID);  
@@ -190,6 +195,7 @@ int readPositionFeedback()
   if ((servoPWM < 300) || (servoPWM > 2000)) { //results outside these boundaries are faulty 
     servoPWM = lastPWM;
   }
+  Serial.println(servoPWM);
   return inverseMapping(servoPWM); //converts the pwm value to an angle and returns it
 }
 
@@ -374,9 +380,11 @@ void sendFeedback(){
    */
   static int lastDeg;
   static int currentDeg;
+  
   lastDeg = currentDeg;
   currentDeg = readPositionFeedback(); //calculates the changed in detected angle since last time feedback was sent
-
+  Serial.println(currentDeg);
+  //currentDeg = 20;
   angularChangeFeedback = currentDeg - lastDeg;
   if(angularChangeFeedback < 0){
     positive = 0;
@@ -384,9 +392,8 @@ void sendFeedback(){
   } 
   else positive = 1;
 
-  char sendFeedback[2];
-  itoa(angularChangeFeedback, &sendFeedback[0], 16); //converts into hex, format: 0-9, a-f
-
+  char sendFeedback[LENGTH_HEX_NUM_DIGITS+1];
+  itoa(angularChangeFeedback, sendFeedback, 16); //converts into hex, format: 0-9, a-f
   if(positive){
     /* out of 4 cases, only two have to be handled here, the others are:
      *  positive and standard conversion letters 0-9 -> not to be changed
@@ -400,11 +407,17 @@ void sendFeedback(){
     sendFeedback[0] += ASCII_DIFFERENCE; //P-Y after addition
   }
 
+  if(sendFeedback[1] == '\0'){
+    sendFeedback[1] = '0';
+    sendFeedback[2] = '\0';
+  }
 
-  Serial.print(NANO_ID); //as first byte of string send?
-  Serial.print(sendFeedback[0]);
-  Serial.println(sendFeedback[1]);
+  Serial.println("f" + String(NANO_ID) + sendFeedback[0] + sendFeedback[1]); //as first byte of string send?
+  //Serial.print(sendFeedback[0]);
+  //Serial.println(sendFeedback[1]);
   Serial.flush();
+//Serial.println(millis());  
+//Serial.flush();
 }
 
 
