@@ -202,9 +202,6 @@ void updateDestinationDeg(){//updates the destination degree from the serial mon
   if (angularChangeReceived != 0) 
   {
     destinationDeg = servoDeg + angularChangeReceived; // update the destination degree by using current position plus requested angular change
-    Serial.println(servoDeg);
-    Serial.println(angularChangeReceived);
-    Serial.println(destinationDeg);
     angularChangeReceived = 0;
   }
 
@@ -219,7 +216,6 @@ void limitDegree(){//keeps the destinationDegree within 0 - 360 degree, e.g. -10
   if (destinationDeg > (1440 + DELTA))  //values above 360 will be mapped to 0 to 360
   {
     destinationDeg = fmod(destinationDeg, 1440); //modulo takes out all integral multiples of 360 to achieve correct mapping    //Serial.println("crossLeft");
-    //Serial.println(positive);
     cross = true;
   }
 }
@@ -408,7 +404,6 @@ void sendFeedback(){
   Serial.print(NANO_ID); //as first byte of string send?
   Serial.print(sendFeedback[0]);
   Serial.println(sendFeedback[1]);
-  Serial.println();
   Serial.flush();
 }
 
