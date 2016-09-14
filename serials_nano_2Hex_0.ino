@@ -57,6 +57,8 @@ double initialDeg = -1;
 int angularChangeReceived;
 int angularChangeFeedback;
 
+static int lastDeg;
+static int currentDeg;
 
 /////////////////////////// FEEDBACK VARIABLES ///////////////////////////
 
@@ -144,7 +146,6 @@ void readSerial() //receive characterizing prefix (+ length in 2 digit Hex, with
       readAngularChange();
     } 
     else if(command == RECEIVE_FEEDBACK_REQUEST){
-      Serial.print('f');
       // FOR THE MOMENT THIS ONLY SUPPORTS 10 OPTIONS
 
       int receivedID = int(strReceived.charAt(1)) - '0';
@@ -372,11 +373,10 @@ void sendFeedback(){
    *
    *
    */
-  static int lastDeg;
-  static int currentDeg;
+
   lastDeg = currentDeg;
   currentDeg = readPositionFeedback(); //calculates the changed in detected angle since last time feedback was sent
-
+  
   angularChangeFeedback = currentDeg - lastDeg;
   if(angularChangeFeedback < 0){
     positive = 0;
@@ -384,8 +384,8 @@ void sendFeedback(){
   } 
   else positive = 1;
 
-  char sendFeedback[2];
-  itoa(angularChangeFeedback, &sendFeedback[0], 16); //converts into hex, format: 0-9, a-f
+  char sendFeedback[LENGTH_HEX_NUM_DIGITS + 1];
+  itoa(angularChangeFeedback, sendFeedback, 16); //converts into hex, format: 0-9, a-f
 
   if(positive){
     /* out of 4 cases, only two have to be handled here, the others are:
@@ -399,11 +399,11 @@ void sendFeedback(){
   else if (sendFeedback[0] < 'A'){ //this case represents 0-9, but with negative sign
     sendFeedback[0] += ASCII_DIFFERENCE; //P-Y after addition
   }
-
-
-  Serial.print(NANO_ID); //as first byte of string send?
-  Serial.print(sendFeedback[0]);
-  Serial.println(sendFeedback[1]);
+  if(sendFeedback[1]=='\0'){
+    sendFeedback[1]= '0';
+    sendFeedback[2]= '\0';
+  }
+  Serial.println("f" + String(NANO_ID) + sendFeedback[0] + sendFeedback[1]);
   Serial.flush();
 }
 
