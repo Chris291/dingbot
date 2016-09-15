@@ -32,7 +32,9 @@
 
 #define RADIUS 200 //spool, 20mm in 0.1mm precision
 
-unsigned long int t_ref; unsigned long int t_ref_receive;
+unsigned long int t_ref; 
+unsigned long int t_ref_receive;
+int feedbackZeroCount = 0;
 String receivedCommand;
 String receivedFeedback;
 String sendFeedback; //easier to have this as char[]?
@@ -92,20 +94,25 @@ void loop() {
     unsigned int lengthFeedback; // The length value for feedback
     char feedbackMega[HEX_DIGITS_LENGTH + 1]; // The mega feedback (to be given to the nano)
     // Loop of feedback requests
-    //for (int i = 0; i < NUMBER_CONNECTED_NANOS; i++) {
-    for (int i = 0; i < 1; i++) {
+    for (int i = 0; i < NUMBER_CONNECTED_NANOS; i++) {
+    //for (int i = 5; i < 6; i++) {
       serialNano[i].listen();
       Serial1.println("f" + String(i)); //concatenates f and number of nano - sends feedback requests to the nanos
       Serial1.flush();
       //delay(10);
-      /*while((serialNano[i].available() == 0) && maxtime<some_number){ // FINAL SIZE
-      }*/
+      while((serialNano[i].available() == 0) && (feedbackZeroCount < 1300)){ // FINAL SIZE
+        feedbackZeroCount++;
+        if(i == 1){
+          feedbackZeroCount = 1300;
+        }
+      }
       
-      if (serialNano[i].available() > 0) {
+      if (feedbackZeroCount != 1300) {
+        Serial.print(feedbackZeroCount);
         receivedFeedback = serialNano[i].readStringUntil('\n'); // check 
-        Serial.print(millis()-t_ref_receive);
+        Serial.print('\t' + String(millis()-t_ref_receive));
         t_ref_receive = millis();
-        Serial.println('l' + receivedFeedback);
+        Serial.println('\t' + receivedFeedback);
         Serial.flush();
         for (int j = 0; j < HEX_DIGITS_ANGLE; j++) {
           feedbackNano[j] = receivedFeedback[j + 2]; //omits 'f*' as feedback prefix
@@ -124,6 +131,7 @@ void loop() {
           angularChangeReceived = -strtol(feedbackNano, 0, 16); //uses sign to determine integer value from hex conversion
         }
       }
+      feedbackZeroCount = 0;
     }
     //Serial.println(angularChangeReceived);
     /*lengthFeedback = lastLengthFeedback[i] + ((float)angularChangeReceived * (M_PI*RADIUS)) / 180.0; //converts to cable length
