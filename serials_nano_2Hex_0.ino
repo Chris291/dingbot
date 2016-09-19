@@ -10,7 +10,7 @@
 #include <Wire.h>
 #include <math.h>
 
-#define NANO_ID 1
+#define NANO_ID 0
 
 #define FEEDBACK_FREQUENCY 40// In Hz
 #define SAMPLETIME (5000.0/FEEDBACK_FREQUENCY)
