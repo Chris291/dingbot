@@ -10,7 +10,7 @@
 #include <Wire.h>
 #include <math.h>
 
-#define NANO_ID 0
+#define NANO_ID 7
 
 #define FEEDBACK_FREQUENCY 40// In Hz
 #define SAMPLETIME (5000.0/FEEDBACK_FREQUENCY)
@@ -40,8 +40,8 @@ int minimumPWMFeedback = 480; //625 lowest measured;
 double stepPWMFeedback = (float)(maximumPWMFeedback - minimumPWMFeedback) / 1440.0; //360 degree in quarter degree precision -> 1440 steps
 
 /// PWM scale for position output to servo ///
-int maximumPWMOutput = 1485; //1475 highest working, but sometimes errors
-int minimumPWMOutput = 470; //460 lowest working, but sometimes errors
+int maximumPWMOutput = 1400; //1475 highest working, but sometimes errors
+int minimumPWMOutput = 520; //460 lowest working, but sometimes errors
 double stepPWMOutput = (float)(maximumPWMOutput - minimumPWMOutput) / 1440.0; //360 degree in quarter degree precision -> 1440 steps
 
 /// scale for velocity output to servo ///
@@ -76,6 +76,9 @@ boolean enableServo = 0;
 boolean stillmode = 0;
 boolean positive = 0;
 
+boolean cw = 1;
+int pwmTestrun = 700;
+
 /////////////////////////// FUNCTION PRECALLING ///////////////////////////
 
 //void setup_timer1();
@@ -109,27 +112,26 @@ String strReceived;
 
 void setup() {
   Serial.begin(115200);
-  //Serial.println("HAHAHA");
 }
 
 void loop() {
   readSerial();
   if ((millis() - t_ref) > TIME_STEP * 1000) {
     t_ref = millis();
-    readPositionFeedback(); //reads position feedback from servo and calculates angle
-    updateDestinationDeg(); //updates the destination degree from the serial monitor (if no input  readSerial();
-    limitDegree(); //keeps the destinationDegree within 0 - 360 degree
-    if (cross == true)
-    {
+    /*
+      updateDestinationDeg(); //updates the destination degree from the serial monitor (if no input  readSerial();
+      limitDegree(); //keeps the destinationDegree within 0 - 360 degree
+      if (cross == true)
+      {
       crossing(); //
       quitCrossing();
-    }
-    if (enableServo) //if input has been received, transmission to servo is enabled
-    {
+      }
+      if (enableServo) //if input has been received, transmission to servo is enabled
+      {
       ctrl_motor(); //transmits the output signal towards the motor
-    }
-    }
-  
+      }
+    */
+  }
 }
 
 
@@ -146,27 +148,111 @@ void readSerial() //receive characterizing prefix (+ length in 2 digit Hex, with
       }
       readAngularChange();
     }
-    else if (command == RECEIVE_FEEDBACK_REQUEST) {
-      // FOR THE MOMENT THIS ONLY SUPPORTS 10 OPTIONS
-
+    else if (command == RECEIVE_FEEDBACK_REQUEST) { //f
+      int receivedID = int(strReceived.charAt(1)) - '0';
+      if (receivedID == NANO_ID) {
+        int x = readPositionFeedback();
+        Serial.print('f');
+        Serial.print('f');
+        Serial.println('f');
+        Serial.flush();
+      }
+    }
+    else if (command == 'g') { //g
       int receivedID = int(strReceived.charAt(1)) - '0';
       if (receivedID == NANO_ID) {
         sendFeedback();
       }
     }
-    else if (command ==  RECEIVE_TEST_REQUEST) {
+    else if (command ==  RECEIVE_TEST_REQUEST) { //t
       int receivedID = int(strReceived.charAt(1)) - '0';
       if (receivedID == NANO_ID) {
-        Serial.println(NANO_ID);
+        if (cw) {
+          if (pwmTestrun < (maximumPWMOutput + 20)) {
+            pwmTestrun += 20;
+          }
+          else {
+            pwmTestrun -= 20;
+            cw = 0;
+          }
+        } else {
+          if (pwmTestrun > (minimumPWMOutput - 20)) {
+            pwmTestrun -= 20;
+          }
+          else {
+            pwmTestrun += 20;
+            cw = 1;
+          }
+        }
+        Serial.print('f');
+        Serial.print('f');
+        Serial.println('f');
+        Serial.flush();
       }
-
-
-      //Serial.print(RECEIVE_TEST_REQUEST);
     }
+    else if (command ==  'z') { //z
+      int receivedID = int(strReceived.charAt(1)) - '0';
+      if (receivedID == NANO_ID) {
+        if (cw) {
+          if (pwmTestrun < (maximumPWMOutput + 20)) {
+            pwmTestrun += 20;
+          }
+          else {
+            pwmTestrun -= 20;
+            cw = 0;
+          }
+        } else {
+          if (pwmTestrun > (minimumPWMOutput - 20)) {
+            pwmTestrun -= 20;
+          }
+          else {
+            pwmTestrun += 20;
+            cw = 1;
+          }
+        }
+        Serial.print('f');
+        Serial.print('f');
+        Serial.println('f');
+        Serial.flush();
+        digitalWrite(MOTOR_PIN, HIGH);
+        delayMicroseconds(pwmTestrun);
+        digitalWrite(MOTOR_PIN, LOW);
+        delayMicroseconds(3000 - pwmTestrun);
+      }
+    }
+    else if (command ==  'u') { //u
+      int receivedID = int(strReceived.charAt(1)) - '0';
+      if (receivedID == NANO_ID) {
+        if (cw) {
+          if (pwmTestrun < (maximumPWMOutput + 20)) {
+            pwmTestrun += 20;
+          }
+          else {
+            pwmTestrun -= 20;
+            cw = 0;
+          }
+        } else {
+          if (pwmTestrun > (minimumPWMOutput - 20)) {
+            pwmTestrun -= 20;
+          }
+          else {
+            pwmTestrun += 20;
+            cw = 1;
+          }
+        }
+        digitalWrite(MOTOR_PIN, HIGH);
+        delayMicroseconds(pwmTestrun);
+        digitalWrite(MOTOR_PIN, LOW);
+        delayMicroseconds(3000 - pwmTestrun);
+        Serial.print('f');
+        Serial.print('f');
+        Serial.println('f');
+        Serial.flush();
+      }
+    }
+    // ADD CALIBRATION LATER
   }
-  // ADD CALIBRATION LATER
 }
-
 
 void readAngularChange() {
   char tmp[2];
@@ -411,6 +497,8 @@ void sendFeedback() {
   else if (sendingFeedback[0] < 'A') { //this case represents 0-9, but with negative sign
     sendingFeedback[0] += ASCII_DIFFERENCE; //P-Y after addition
   }
-  Serial.println("f" + String(NANO_ID) + sendingFeedback[0] + sendingFeedback[1]);
+  Serial.print('f');
+  Serial.print(sendingFeedback[0]);
+  Serial.println(sendingFeedback[1]);
   Serial.flush();
 }
