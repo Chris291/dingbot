@@ -40,8 +40,11 @@ unsigned int lastLength[NUMBER_CONNECTED_NANOS]; //unsigned int has 2 bytes, ran
 unsigned int lastLengthFeedback[NUMBER_CONNECTED_NANOS]; //with .1 mm precision, this equals ~6.5m
 
 String combinedTest;
+String lastRow;
 int counter = 0;
 boolean led;
+int bufferCounter = 0;
+int ascii[10];
 
 SoftwareSerial serialNano[8] = {
   SoftwareSerial (62, 19), // RX, TX - 0
@@ -85,7 +88,6 @@ void setup() {
 
 /* Main loop acts to interface with MATLAB (asynchronously) and nano at 20Hz */
 void loop() {
-  Serial.print(".");
   /*if (Serial.available() > 0) {  //MATLAB via USB
     receivedCommand = Serial.readStringUntil('\n');
     }
@@ -94,54 +96,40 @@ void loop() {
   if ((millis() - t_ref) > TIME_STEP * 1000) {
     // Reset the time (AT A LATER DATE PROTECTION MAY BE NEEDED FOR OVERFLOW
     t_ref = millis();
-    /* Request Feedback from the nanos */
+    
+    // Request Feedback from the nanos
     /*char feedbackNano[HEX_DIGITS_ANGLE]; // Array to store the nano feedback
       boolean is_positive = 1; // flag to indicate positive angle change
       int angularChangeReceived; // The change in angular value that was recieved
       unsigned int lengthFeedback; // The length value for feedback
       char feedbackMega[HEX_DIGITS_LENGTH + 1]; // The mega feedback (to be given to the nano)
-      // Loop of feedback requests
-      //for (int i = 0; i < NUMBER_CONNECTED_NANOS; i++) {
     */
-
-    Serial1.println("aU0");
-    
-
+    // Loop of feedback requests
     for (int i = 0; i < NUMBER_CONNECTED_NANOS; i++) {
       serialNano[i].listen();
-      Serial1.println('t' + String(i)); //concatenates f and number of nano - sends feedback requests to the nanos
-      if (i == 0) {
-        if (led) {
-          digitalWrite(13, LOW);
-        } else {
-          digitalWrite(13, HIGH);
-        }
-        led = !led;
-      }
-
-
+      Serial1.println('f' + String(i)); //concatenates f and number of nano - sends feedback requests to the nanos
+      /*
+        f0 - readMotor, send static 3 bytes
+        g0 - readMotor, send feedback
+        t0 - no motor control, send static 3 bytes
+        z0 - motor control (through pwm, no reading) after sending static 3 bytes
+        u0 - motor control (through pwm, no reading) before sending 3 static bytes
+       */
       Serial1.flush();
+
       counter = 0;
       while ((serialNano[i].available() == 0) && counter < 1300) {
-        //delayMicroseconds(150);
         counter++;
-        if (counter > 1299) {
-          Serial.println(counter);
-        }
       }
-
+      
       if (serialNano[i].available() > 0) {
         receivedFeedback = serialNano[i].readStringUntil('\n'); // check
-        combinedTest = combinedTest + receivedFeedback;
-        int x = receivedFeedback[0];
-        if((x-'0') != i){
-          Serial.println(x);
-          Serial.println(counter);
-          Serial.println("delay" + String(i));
-          
+        combinedTest = combinedTest + i + " " + receivedFeedback + " " + counter + " ";
+        for(int j = 0; j < receivedFeedback.length(); j++){
+          ascii[j] = receivedFeedback[j];
+          combinedTest = combinedTest + ascii[j] + " ";
         }
-        //Serial.println(receivedFeedback);
-        //Serial.flush();
+
         /*for (int j = 0; j < HEX_DIGITS_ANGLE; j++) {
           feedbackNano[j] = receivedFeedback[j + 2]; //omits 'f*' as feedback prefix
           }
@@ -160,22 +148,24 @@ void loop() {
           }
           }
         */
-        
+
       }
-    }
-    Serial.print(combinedTest);
-    combinedTest = "";
-    Serial.println(millis() - t_ref_receive);
+  }
+    combinedTest = combinedTest + (millis() - t_ref_receive);
     if((millis() - t_ref_receive) > 75){
-      Serial.println(counter);
+      Serial.println(lastRow);
+      Serial.println(combinedTest);
+      Serial.flush();
     }
+    lastRow = combinedTest;
+    combinedTest = "";
     t_ref_receive = millis();
-    
+
     /*lengthFeedback = lastLengthFeedback[i] + ((float)angularChangeReceived * (M_PI*RADIUS)) / 180.0; //converts to cable length
       lastLengthFeedback[i] = lengthFeedback;
       itoa(lengthFeedback, feedbackMega, 16); //converts to hex to send it to MATLAB
 
-      /
+      
       itoa(angularChangeReceived, feedbackMega, 16);
       for(int j=0; j < HEX_DIGITS_LENGTH; j++){  //fills sendFeedback array at right position, no conversion necessary
       sendFeedback[HEX_DIGITS_LENGTH*i + j] = feedbackMega[j]; //any prefix while sending to MATLAB?
@@ -188,7 +178,7 @@ void loop() {
       //Serial.flush();*/
 
 
-    /* Set up send command for the nano */
+    // Set up send command for the nano
     /*  char sendCommand[HEX_DIGITS_ANGLE * NUMBER_CONNECTED_NANOS + 1];
       int lengthChange;
       int angleChange;
@@ -220,9 +210,10 @@ void loop() {
           commandNano[2] = '\0';
         }
         if (is_positive) {
-          /* out of 4 cases, only two have to be handled here, the others are:
-            is_positive and standard conversion letters 0-9 -> not to be changed
-            negative and standard conversion letters a-f -> not to be changed
+    */
+    /* out of 4 cases, only two have to be handled here, the others are:
+      is_positive and standard conversion letters 0-9 -> not to be changed
+      negative and standard conversion letters a-f -> not to be changed
     */
 
     /*    if (commandNano[0] > '9') { //this case represents letters a-f, but with a is_positive sign
