@@ -1,0 +1,56 @@
+Serial.available show -> buffer filling up?
+buffer not filling up - is empty after readinng
+
+1 - nano receive feedback request, only read feedback, send it back - no motor control:
+f000 f100 f207… f300 f400 f500 f608 f700 1049
+f0˜ f100 f200 f300 f4P1 f5P8 f6P8 f700 1023
+f0˜ f102 f2P7 f300 f401 f500 f608 f700 1024
+f00C… f100 f202 f300 f40a f5P6 f6P2 f70a 1026
+f00˜ f102 f2P2 f300 f4P2 f500 f602 f7P1 25
+f000 f1P2 f2P7 f300 f4PSHø f500 f6P2 f701 1048
+f˜0 f1P2 f20a f300 f408 f508 f6P8 f700 25
+f000 f102 f2P2 f300 f400 f500 f60a f7P1 51
+f000 f100 f202 f300 f402 f500 f6Pa f701 52
+
+f000 f10˜ f200 f300 f40a f500 f6P2 f700 52  28121
+f000 f100 f2P7 f302 f4P6 f500 f600 f700 50  28172
+f000 f100 f2P1 f3P2 f406 fM‚j f600 f701 52  28224
+f000 f1P2 f2Pa f3Pa f409 f500 f6P< f700 50  28580
+
+Corruptions of received data occur far more frequently together with a ~1000ms delay
+unregularly also without a delay
+After higher delay, jumps to ~25ms for one cycle - no reset of millis() occurs
+
+2 - nano receives one command, drives motor continuously without motor feedback
+1 2 3 4 5 6 7 51  1645
+1 2 3 4 5 6 7 51  1696
+
+3 - nano reads motor feedback, sends static back
+0 ffsC… 42 1 fff 45 2 fff 46 3 fff 87 4 fff 87 6 fff 47 7 ff³ 44 1017
+0 f3³Cá 42 1 fff 44 2 fff 43 3 fff 87 4 fff 87 6 fff 44 7 fff 43 1016
+0 ³–VHø 42 1 fff 47 2 fff 46 3 fff 87 4 fff 87 6 fff 45 7 fff 47 1018
+0 ffsC… 40 1 fff 43 2 fff 48 3 fff 87 4 fff 87 6 fff 43 7 fffCá 43 2017
+0 ³fcƒ… 42 1 fff 42 2 fff 47 3 fff 87 4 fff 87 6 fff 46 7 ff³ 47 1018
+0 fs³ 42 1 fff 44 2 fff 46 3 fff 87 4 fff 87 6 fff 44 7 fff 46 1017
+0 ffgCÁ 40 1 fff 47 2 fff 46 3 fff 87 4 fff 100 6 fff 44 7 fff 45 1018
+0 ff³ 39 1 ffsCÁ 42 2 fff 46 3 fff 87 4 fff 100 6 fff 43 7 fff 48 1017
+0 s³f 42 1 ffsCÁ 38 2 fff 48 3 fff 87 4 fff 103 6 fff 46 7 fff 42 1017
+
+mostly received data from nano0 is corrupted - happens a lot less frequently (incl. the delays) if nano0 is taken out
+
+-open loop control with angular change
+-reduce baud rate
+
+------------------------------
+f0 - readMotor, send static 3 bytes
+g0 - readMotor, send feedback
+t0 - no motor control, send static 3 bytes
+z0 - motor control (through pwm, no reading) after sending static 3 bytes
+u0 - motor control (through pwm, no reading) before sending 3 static bytes
+
+
+often no delays at all when taking out nano0, 
+
+
+serial event loop - print times (read, serial event loop etc.)
+print ascii values
