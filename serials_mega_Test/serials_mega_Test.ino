@@ -15,12 +15,10 @@
 
 // Defining constants
 #define FEEDBACK_FREQUENCY 20// In Hz
-#define FEEDBACK_FREQUENCY_COUNT 1000/FEEDBACK_FREQUENCY
-#define SAMPLETIME (5000/FEEDBACK_FREQUENCY)
 #define TIME_STEP 1.0/FEEDBACK_FREQUENCY
 #define NUMBER_CONNECTED_NANOS 8
 #define INITIAL_LENGTH_COMMAND "l00000000000000000000000000000000"
-#define BAUD_RATE 115200
+#define BAUD_RATE 74880
 
 #define HEX_DIGITS_ANGLE 2
 #define HEX_DIGITS_LENGTH 4
@@ -42,9 +40,8 @@ unsigned int lastLengthFeedback[NUMBER_CONNECTED_NANOS]; //with .1 mm precision,
 String combinedTest;
 String lastRow;
 int counter = 0;
-boolean led;
-int bufferCounter = 0;
-int ascii[10];
+unsigned long int startReadMillis;
+int corruptionCounter = 0;
 
 SoftwareSerial serialNano[8] = {
   SoftwareSerial (62, 19), // RX, TX - 0
@@ -67,13 +64,13 @@ void setup() {
   Serial1.begin(BAUD_RATE); //broadcast
   for (int i = 0; i < NUMBER_CONNECTED_NANOS; i++) { //all the softwareSerials for arduino nano
     serialNano[i].begin(BAUD_RATE);
+    //serialNano[i].setTimeout(10);
   }
+  startReadMillis = millis();
   Serial.println("SETUP");
-  pinMode(13, OUTPUT);
   t_ref = millis();
   t_ref_receive = t_ref;
   combinedTest = "";
-  led = false;
   //receivedCommand = INITIAL_LENGTH_COMMAND;
   /*
      Initialization needed:
@@ -96,7 +93,6 @@ void loop() {
   if ((millis() - t_ref) > TIME_STEP * 1000) {
     // Reset the time (AT A LATER DATE PROTECTION MAY BE NEEDED FOR OVERFLOW
     t_ref = millis();
-    
     // Request Feedback from the nanos
     /*char feedbackNano[HEX_DIGITS_ANGLE]; // Array to store the nano feedback
       boolean is_positive = 1; // flag to indicate positive angle change
@@ -107,29 +103,24 @@ void loop() {
     // Loop of feedback requests
     for (int i = 0; i < NUMBER_CONNECTED_NANOS; i++) {
       serialNano[i].listen();
-      Serial1.println('f' + String(i)); //concatenates f and number of nano - sends feedback requests to the nanos
+      Serial1.println('g' + String(i)); //concatenates f and number of nano - sends feedback requests to the nanos
+      Serial1.flush();
       /*
         f0 - readMotor, send static 3 bytes
         g0 - readMotor, send feedback
         t0 - no motor control, send static 3 bytes
         z0 - motor control (through pwm, no reading) after sending static 3 bytes
         u0 - motor control (through pwm, no reading) before sending 3 static bytes
-       */
-      Serial1.flush();
+      */
+
 
       counter = 0;
       while ((serialNano[i].available() == 0) && counter < 1300) {
         counter++;
       }
-      
       if (serialNano[i].available() > 0) {
         receivedFeedback = serialNano[i].readStringUntil('\n'); // check
-        combinedTest = combinedTest + i + " " + receivedFeedback + " " + counter + " ";
-        for(int j = 0; j < receivedFeedback.length(); j++){
-          ascii[j] = receivedFeedback[j];
-          combinedTest = combinedTest + ascii[j] + " ";
-        }
-
+        combinedTest = combinedTest + i + counter + " " + receivedFeedback + " ";
         /*for (int j = 0; j < HEX_DIGITS_ANGLE; j++) {
           feedbackNano[j] = receivedFeedback[j + 2]; //omits 'f*' as feedback prefix
           }
@@ -150,22 +141,31 @@ void loop() {
         */
 
       }
-  }
+    }
     combinedTest = combinedTest + (millis() - t_ref_receive);
-    if((millis() - t_ref_receive) > 75){
-      Serial.println(lastRow);
+    if ((millis() - t_ref_receive) > 75) {
+      //Serial.println(lastRow);
+      corruptionCounter++;
+    }
+
+    t_ref_receive = millis();
+    if (corruptionCounter > 100) {
+      Serial.println("---------------------");
+      Serial.println(millis() - startReadMillis);
+      Serial.println("---------------------");
+    } else {
       Serial.println(combinedTest);
       Serial.flush();
     }
-    lastRow = combinedTest;
+
+
     combinedTest = "";
-    t_ref_receive = millis();
 
     /*lengthFeedback = lastLengthFeedback[i] + ((float)angularChangeReceived * (M_PI*RADIUS)) / 180.0; //converts to cable length
       lastLengthFeedback[i] = lengthFeedback;
       itoa(lengthFeedback, feedbackMega, 16); //converts to hex to send it to MATLAB
 
-      
+
       itoa(angularChangeReceived, feedbackMega, 16);
       for(int j=0; j < HEX_DIGITS_LENGTH; j++){  //fills sendFeedback array at right position, no conversion necessary
       sendFeedback[HEX_DIGITS_LENGTH*i + j] = feedbackMega[j]; //any prefix while sending to MATLAB?

@@ -26,6 +26,7 @@
 
 #define ASCII_MIDDLE_POINT 75
 #define ASCII_DIFFERENCE 32
+#define BAUD_RATE 74880
 
 
 #define MOTOR_PIN 2
@@ -111,7 +112,7 @@ unsigned long lastTime;
 String strReceived;
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(BAUD_RATE);
 }
 
 void loop() {
@@ -167,23 +168,6 @@ void readSerial() //receive characterizing prefix (+ length in 2 digit Hex, with
     else if (command ==  RECEIVE_TEST_REQUEST) { //t
       int receivedID = int(strReceived.charAt(1)) - '0';
       if (receivedID == NANO_ID) {
-        if (cw) {
-          if (pwmTestrun < (maximumPWMOutput + 20)) {
-            pwmTestrun += 20;
-          }
-          else {
-            pwmTestrun -= 20;
-            cw = 0;
-          }
-        } else {
-          if (pwmTestrun > (minimumPWMOutput - 20)) {
-            pwmTestrun -= 20;
-          }
-          else {
-            pwmTestrun += 20;
-            cw = 1;
-          }
-        }
         Serial.print('f');
         Serial.print('f');
         Serial.println('f');
@@ -194,19 +178,19 @@ void readSerial() //receive characterizing prefix (+ length in 2 digit Hex, with
       int receivedID = int(strReceived.charAt(1)) - '0';
       if (receivedID == NANO_ID) {
         if (cw) {
-          if (pwmTestrun < (maximumPWMOutput + 20)) {
-            pwmTestrun += 20;
+          if (pwmTestrun < (maximumPWMOutput + 15)) {
+            pwmTestrun += 15;
           }
           else {
-            pwmTestrun -= 20;
+            pwmTestrun -= 15;
             cw = 0;
           }
         } else {
-          if (pwmTestrun > (minimumPWMOutput - 20)) {
-            pwmTestrun -= 20;
+          if (pwmTestrun > (minimumPWMOutput - 15)) {
+            pwmTestrun -= 15;
           }
           else {
-            pwmTestrun += 20;
+            pwmTestrun += 15;
             cw = 1;
           }
         }
