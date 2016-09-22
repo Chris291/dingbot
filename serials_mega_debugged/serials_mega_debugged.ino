@@ -28,7 +28,7 @@
 
 #define RECEIVE_ANGLE 'a'
 #define REQUEST_FEEDBACK 'f'
-#define REQUEST_ACCUMULATIVE_FEEDBACK 'g'
+#define REQUEST_ACCUMULATIVE_FEEDBACK 'z'
 
 #define RADIUS 200 //spool, 20mm in 0.1mm precision
 
@@ -106,8 +106,8 @@ void loop() {
     for (int i = 0; i < NUMBER_CONNECTED_NANOS; i++) {
       serialNano[i].listen();
       if (!corruptedFeedback[i]) {
-        Serial1.println(REQUEST_FEEDBACK + String(i)); //requests feedback from nano
-      } else Serial1.println(REQUEST_ACCUMULATIVE_FEEDBACK + String(i)); //requests accumulative feedback from nano
+        Serial1.println(REQUEST_FEEDBACK); //requests feedback from nano
+      } else Serial1.println(REQUEST_ACCUMULATIVE_FEEDBACK); //requests accumulative feedback from nano
       Serial1.flush(); //waits for the sending of Serial to be complete before moving on
 
       counter = 0;
