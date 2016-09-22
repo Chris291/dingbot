@@ -48,9 +48,79 @@ t0 - no motor control, send static 3 bytes
 z0 - motor control (through pwm, no reading) after sending static 3 bytes
 u0 - motor control (through pwm, no reading) before sending 3 static bytes
 
+f
+delays regularly, counter ~85 
+mostly with corruptions, but not always
+fffCá 5-102-102-102-67--31-0
+fff 5-102-102-102-13-5-0
+fffƒ… 5-102-102-102--125--123-0
+->mostly similar corruptions to u
 
-often no delays at all when taking out nano0, 
 
+
+g
+more regular delays than f, counter is same (~85)
+
+f0XCá 5-102-48-88-67--31-0
+fP9 5-102-80-57-13-5-0
+f00	 5-102-48-48-13-9-0
+
+format: start - counter time feedback buffer-ascii values-buffer time |
+
+0  081 0 fP8 5-102-80-56-13-0 3 | 186 3 f00Cá 5-102-48-48-67--31-0 1007 | 283 1008 f09 5-102-48-57-13-0 1012 | 383 1012 f00 5-102-48-48-13-0 1016 | 485 1017 f07 5-102-48-55-13-0 1022 | 589 1022 f02 5-102-48-50-13-0 1028 | 692 1029 f01 5-102-48-49-13-0 1034 | 791 1035 f00 5-102-48-48-13-0 1040 | 1053
+
+
+t
+similar to z, only one delay close to beginning, counter 2-3, buffer 5 -> 0
+62 fffCá 5-102-102-102-67--31-0
+
+
+z
+often no delays at all, smooth running for long time
+once delay is there, always prone to have more delays
+might run for a while again, delay is gonna come back at some point
+no irregularities/corruptions in previous readings
+serialNano[i].available is 5, after reading 0 - counter 2-3
+6 2 fffCá 5-102-102-102-67--31-0 - weirdly reproducible, closely to reset, smooth after that
+
+u
+more prone to delays than z, counter is ~181, buffer 5 -> 0
+no delay without corruption, previous reading normal
+fff 5-102-102-102-13-5-0
+fff 5-102-102-102-14-0
+fffCá 5-102-102-102-67--31-0
+fff… 5-102-102-102-13--123-0
+gff 5-103-102-102-13-0
+ffs 5-102-102-115-13-0
+fff	 5-102-102-102-13-9-0 
+
+0  0180 0 fff 5-102-102-102-13-0 6 | 1181 6 fff 5-102-102-102-13-5-0 1011 | 2180 1012 fff 5-102-102-102-13-0 1017 | 3180 1018 fff 5-102-102-102-13-0 1024 | 4180 1024 fff 5-102-102-102-13-0 1031 | 5180 1031 fff 5-102-102-102-13-0 1038 | 6181 1039 fff 5-102-102-102-13-0 1046 | 7180 1046 fff 5-102-102-102-13-0 1054 | 1055
+
+
+--------
+BAUD RATE
+benchmark with g, measures time until 100 detected timeouts (corruptions)
+
+115200: 233,426s / 239,399s / 216,410s / 215,738s / 203,097s / 224,643s
+74880 / 57600: no quantifiable error
 
 serial event loop - print times (read, serial event loop etc.)
-print ascii values
+does delay occur while reading / can corruption be detected to get rid of delay?
+
+half baud rate
+
+
+
+
+
+
+
+nano:
+-f send relative change, g send accumulative change (resets one it receives f)
+-check sum byte
+
+2 hex ascii check sum - possible overlap by different combinations?
+
+nano send - remove id, new line character - reading of mega for specific bytes
+checksum 
+
