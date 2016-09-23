@@ -195,8 +195,6 @@ void readAngularChange() {
   tmp[0] = strReceived[LENGTH_HEX_NUM_DIGITS * NANO_ID + 1];
   tmp[1] = strReceived[LENGTH_HEX_NUM_DIGITS * NANO_ID + 2];
   tmp[2] = '\0';
-  Serial.print(tmp);
-  Serial.print(" ");
   if (tmp[0] > ASCII_MIDDLE_POINT) {
     tmp[0] -= ASCII_DIFFERENCE;
     positive = 0;
