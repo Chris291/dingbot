@@ -10,7 +10,7 @@
 #include <Wire.h>
 #include <math.h>
 
-#define NANO_ID 7
+#define NANO_ID 0
 
 #define FEEDBACK_FREQUENCY 40// In Hz
 #define SAMPLETIME (5000.0/FEEDBACK_FREQUENCY)
@@ -23,6 +23,7 @@
 #define RECEIVE_ANGLE_CMD 'a'
 #define RECEIVE_FEEDBACK_REQUEST 'f'
 #define RECEIVE_TEST_REQUEST 't'
+#define RECEIVE_TESTDRIVE_REQUEST 'z'
 
 #define ASCII_MIDDLE_POINT 75
 #define ASCII_DIFFERENCE 32
@@ -33,6 +34,7 @@
 /////////////////////////// DEBUGGING AND TIMING VARIABLES //////////////
 
 unsigned long int t_ref;
+
 /////////////////////////// SERVO PARAMETERS ///////////////////////////
 
 /// PWM scale for position feedback from servo ///
@@ -119,19 +121,17 @@ void loop() {
   readSerial();
   if ((millis() - t_ref) > TIME_STEP * 1000) {
     t_ref = millis();
-    /*
-      updateDestinationDeg(); //updates the destination degree from the serial monitor (if no input  readSerial();
+    if (enableServo) //if input has been received, transmission to servo is enabled
+    {
+      updateDestinationDeg();
       limitDegree(); //keeps the destinationDegree within 0 - 360 degree
       if (cross == true)
       {
-      crossing(); //
-      quitCrossing();
+        crossing(); //
+        quitCrossing();
       }
-      if (enableServo) //if input has been received, transmission to servo is enabled
-      {
       ctrl_motor(); //transmits the output signal towards the motor
-      }
-    */
+    }
   }
 }
 
@@ -150,99 +150,53 @@ void readSerial() //receive characterizing prefix (+ length in 2 digit Hex, with
       readAngularChange();
     }
     else if (command == RECEIVE_FEEDBACK_REQUEST) { //f
-      int receivedID = int(strReceived.charAt(1)) - '0';
-      if (receivedID == NANO_ID) {
-        int x = readPositionFeedback();
-        Serial.print('f');
-        Serial.print('f');
-        Serial.println('f');
-        Serial.flush();
-      }
+      sendFeedback();
     }
-    else if (command == 'g') { //g
-      int receivedID = int(strReceived.charAt(1)) - '0';
-      if (receivedID == NANO_ID) {
-        sendFeedback();
-      }
+    else if (command == RECEIVE_TEST_REQUEST) { //t
+      Serial.print('c');
+      Serial.println('c');
+      Serial.flush();
     }
-    else if (command ==  RECEIVE_TEST_REQUEST) { //t
-      int receivedID = int(strReceived.charAt(1)) - '0';
-      if (receivedID == NANO_ID) {
-        Serial.print('f');
-        Serial.print('f');
-        Serial.println('f');
-        Serial.flush();
-      }
-    }
-    else if (command ==  'z') { //z
-      int receivedID = int(strReceived.charAt(1)) - '0';
-      if (receivedID == NANO_ID) {
-        if (cw) {
-          if (pwmTestrun < (maximumPWMOutput + 15)) {
-            pwmTestrun += 15;
-          }
-          else {
-            pwmTestrun -= 15;
-            cw = 0;
-          }
-        } else {
-          if (pwmTestrun > (minimumPWMOutput - 15)) {
-            pwmTestrun -= 15;
-          }
-          else {
-            pwmTestrun += 15;
-            cw = 1;
-          }
+    else if (command == RECEIVE_TESTDRIVE_REQUEST) { //z
+      if (cw) {
+        if (pwmTestrun < (maximumPWMOutput + 20)) {
+          pwmTestrun += 20;
         }
-        Serial.print('f');
-        Serial.print('f');
-        Serial.println('f');
-        Serial.flush();
-        digitalWrite(MOTOR_PIN, HIGH);
-        delayMicroseconds(pwmTestrun);
-        digitalWrite(MOTOR_PIN, LOW);
-        delayMicroseconds(3000 - pwmTestrun);
-      }
-    }
-    else if (command ==  'u') { //u
-      int receivedID = int(strReceived.charAt(1)) - '0';
-      if (receivedID == NANO_ID) {
-        if (cw) {
-          if (pwmTestrun < (maximumPWMOutput + 20)) {
-            pwmTestrun += 20;
-          }
-          else {
-            pwmTestrun -= 20;
-            cw = 0;
-          }
-        } else {
-          if (pwmTestrun > (minimumPWMOutput - 20)) {
-            pwmTestrun -= 20;
-          }
-          else {
-            pwmTestrun += 20;
-            cw = 1;
-          }
+        else {
+          pwmTestrun -= 20;
+          cw = 0;
         }
-        digitalWrite(MOTOR_PIN, HIGH);
-        delayMicroseconds(pwmTestrun);
-        digitalWrite(MOTOR_PIN, LOW);
-        delayMicroseconds(3000 - pwmTestrun);
-        Serial.print('f');
-        Serial.print('f');
-        Serial.println('f');
-        Serial.flush();
+      } else {
+        if (pwmTestrun > (minimumPWMOutput - 20)) {
+          pwmTestrun -= 20;
+        }
+        else {
+          pwmTestrun += 20;
+          cw = 1;
+        }
       }
-    }
-    // ADD CALIBRATION LATER
+      Serial.print('c');
+      Serial.println('c');
+      Serial.flush();
+    
+      digitalWrite(MOTOR_PIN, HIGH);
+      delayMicroseconds(pwmTestrun);
+      digitalWrite(MOTOR_PIN, LOW);
+      delayMicroseconds(3000 - pwmTestrun);
+
+      }
   }
+  // ADD CALIBRATION LATER
 }
+
 
 void readAngularChange() {
   char tmp[2];
   tmp[0] = strReceived[LENGTH_HEX_NUM_DIGITS * NANO_ID + 1];
   tmp[1] = strReceived[LENGTH_HEX_NUM_DIGITS * NANO_ID + 2];
-
+  tmp[2] = '\0';
+  Serial.print(tmp);
+  Serial.print(" ");
   if (tmp[0] > ASCII_MIDDLE_POINT) {
     tmp[0] -= ASCII_DIFFERENCE;
     positive = 0;
@@ -272,6 +226,7 @@ int readPositionFeedback()
 
 void updateDestinationDeg() { //updates the destination degree from the serial monitor (if no input, no change)
   int servoDeg = readPositionFeedback();
+  currentDeg = servoDeg;
   if (initialDeg < 0)
   { //first time this method is entered
     initialDeg = servoDeg;
@@ -446,14 +401,13 @@ void sendFeedback() {
     if first hex contains 0-9, A-F (ASCII 48-57, 65-70) -> clockwise
     if first hex contains P-Y, a-f (ASCII 80-89, 97-102) -> counterclockwise
   */
-  lastDeg = currentDeg;
-  currentDeg = readPositionFeedback(); //calculates the changed in detected angle since last time feedback was sent
   if (firstTimeRead) {
     angularChangeFeedback = 0;
     firstTimeRead = 0;
   } else {
     angularChangeFeedback = currentDeg - lastDeg;
   }
+  lastDeg = currentDeg;
   if (angularChangeFeedback < 0) {
     positive = 0;
     angularChangeFeedback = abs(angularChangeFeedback);
@@ -481,7 +435,6 @@ void sendFeedback() {
   else if (sendingFeedback[0] < 'A') { //this case represents 0-9, but with negative sign
     sendingFeedback[0] += ASCII_DIFFERENCE; //P-Y after addition
   }
-  Serial.print('f');
   Serial.print(sendingFeedback[0]);
   Serial.println(sendingFeedback[1]);
   Serial.flush();
