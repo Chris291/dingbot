@@ -29,7 +29,6 @@
 #define ASCII_DIFFERENCE 32
 #define BAUD_RATE 74880
 
-
 #define MOTOR_PIN 2
 /////////////////////////// DEBUGGING AND TIMING VARIABLES //////////////
 
@@ -98,7 +97,6 @@ void servoPulse(int servoPin, int pulseWidth);
 void control();
 void updateDestinationDeg();
 void readAngularChange();
-
 
 /////////////////////////// CONTROL VARIABLES ///////////////////////////
 
