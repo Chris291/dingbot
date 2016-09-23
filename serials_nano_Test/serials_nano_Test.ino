@@ -154,6 +154,7 @@ void readSerial() //receive characterizing prefix (+ length in 2 digit Hex, with
       Serial.print('c');
       Serial.println('c');
       Serial.flush();
+      delayMicroseconds(10);
     }
     else if (command == RECEIVE_TESTDRIVE_REQUEST) { //z
       if (cw) {
@@ -176,6 +177,7 @@ void readSerial() //receive characterizing prefix (+ length in 2 digit Hex, with
       Serial.print('c');
       Serial.println('c');
       Serial.flush();
+      delayMicroseconds(10);
     
       digitalWrite(MOTOR_PIN, HIGH);
       delayMicroseconds(pwmTestrun);
@@ -434,4 +436,5 @@ void sendFeedback() {
   Serial.print(sendingFeedback[0]);
   Serial.println(sendingFeedback[1]);
   Serial.flush();
+  delayMicroseconds(10);
 }
