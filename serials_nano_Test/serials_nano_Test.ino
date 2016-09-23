@@ -34,23 +34,27 @@
 
 unsigned long int t_ref;
 
+/////////////////////////// MOTORS DATA BANK //////////////
+int maximumPWMFeedback[8] = {1490, 1485, 1485, 1480, 1486, 1485, 1490, 1510};
+int minimumPWMFeedback[8] = {480, 480, 480, 470, 485, 480, 480, 485};
+int maximumPWMOutput[8] = {1485, 1485, 1480, 1470, 1480, 1480, 1485, 1500};
+int minimumPWMOutput[8] = {470, 470, 470, 470, 470, 470, 475, 475}; 
+int clockwise_max[8] = {2194, 2175, 2185, 2175, 2189, 2188, 2188, 2215};
+int clockwise_min[8] = {2094, 2082, 2090, 2079, 2089, 2088, 2088, 2117};
+int clockwise_max_speed[8] = {283, 278, 272, 269, 272, 281, 278, 278};
+int clockwise_min_speed[8] = {130, 131, 127, 127, 127, 128, 133, 130};
+int anticlockwise_max[8] = {1791, 1780, 1785, 1780, 1785, 1786, 1788, 1811};
+int anticlockwise_min[8] = {1891, 1880, 1887, 1876, 1885, 1886, 1888, 1910};
+int anticlockwise_max_speed[8] = {-281, -278, -273, -269, -270, -279, -273, -279};
+int anticlockwise_min_speed[8] = {-133, -130, -132, -129, -124, -129, -128, -131};
+
 /////////////////////////// SERVO PARAMETERS ///////////////////////////
 
 /// PWM scale for position feedback from servo ///
-int maximumPWMFeedback = 1490; //1972 highest measured;
-int minimumPWMFeedback = 480; //625 lowest measured;
-double stepPWMFeedback = (float)(maximumPWMFeedback - minimumPWMFeedback) / 1440.0; //360 degree in quarter degree precision -> 1440 steps
+double stepPWMFeedback = (float)(maximumPWMFeedback[NANO_ID] - minimumPWMFeedback[NANO_ID]) / 1440.0; //360 degree in quarter degree precision -> 1440 steps
 
 /// PWM scale for position output to servo ///
-int maximumPWMOutput = 1400; //1475 highest working, but sometimes errors
-int minimumPWMOutput = 520; //460 lowest working, but sometimes errors
-double stepPWMOutput = (float)(maximumPWMOutput - minimumPWMOutput) / 1440.0; //360 degree in quarter degree precision -> 1440 steps
-
-/// scale for velocity output to servo ///
-int clockwise_max = 2183;
-int clockwise_min = 2083;
-int anticlockwise_max = 1788;
-int anticlockwise_min = 1883;
+double stepPWMOutput = (float)(maximumPWMOutput[NANO_ID] - minimumPWMOutput[NANO_ID]) / 1440.0; //360 degree in quarter degree precision -> 1440 steps
 
 double initialDeg = -1;
 
@@ -58,7 +62,7 @@ int angularChangeReceived;
 int angularChangeFeedback;
 
 int lastDeg;
-int currentDeg = minimumPWMFeedback;
+int currentDeg = minimumPWMFeedback[NANO_ID];
 
 /////////////////////////// FEEDBACK VARIABLES ///////////////////////////
 
@@ -158,7 +162,7 @@ void readSerial() //receive characterizing prefix (+ length in 2 digit Hex, with
     }
     else if (command == RECEIVE_TESTDRIVE_REQUEST) { //z
       if (cw) {
-        if (pwmTestrun < (maximumPWMOutput + 20)) {
+        if (pwmTestrun < (maximumPWMOutput[NANO_ID] + 20)) {
           pwmTestrun += 20;
         }
         else {
@@ -166,7 +170,7 @@ void readSerial() //receive characterizing prefix (+ length in 2 digit Hex, with
           cw = 0;
         }
       } else {
-        if (pwmTestrun > (minimumPWMOutput - 20)) {
+        if (pwmTestrun > (minimumPWMOutput[NANO_ID] - 20)) {
           pwmTestrun -= 20;
         }
         else {
@@ -271,7 +275,7 @@ void crossing() {
         }
         check = 1;
       */
-      crossPulse = anticlockwise_max;
+      crossPulse = anticlockwise_max[NANO_ID];
     }
     else if (positive == 1) // From left
     { /*
@@ -291,7 +295,7 @@ void crossing() {
         }
         check = 1;
       */
-      crossPulse = clockwise_max;
+      crossPulse = clockwise_max[NANO_ID];
     }
   }
 }
@@ -335,14 +339,14 @@ void servoPulse(int servoPin, int pulseWidth) {
 }
 
 void mapping() { // maps the calculated destinationDeg onto the pwm_output scale
-  destinationPWM = minimumPWMOutput + destinationDeg * stepPWMOutput;
+  destinationPWM = minimumPWMOutput[NANO_ID] + destinationDeg * stepPWMOutput;
   //deadzone();
   control();
 }
 
 int inverseMapping(int pwmFeedback) {
   //inversely maps detected pwm to a degree
-  return ((double)(pwmFeedback - minimumPWMFeedback) / stepPWMFeedback) + 0.5;
+  return ((double)(pwmFeedback - minimumPWMFeedback[NANO_ID]) / stepPWMFeedback) + 0.5;
 }
 
 
