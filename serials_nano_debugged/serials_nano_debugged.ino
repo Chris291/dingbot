@@ -10,7 +10,7 @@
 #include <Wire.h>
 #include <math.h>
 
-#define NANO_ID 7
+#define NANO_ID 0
 
 #define FEEDBACK_FREQUENCY 40// In Hz
 #define SAMPLETIME (5000.0/FEEDBACK_FREQUENCY)
@@ -41,8 +41,8 @@ int minimumPWMFeedback = 480; //625 lowest measured;
 double stepPWMFeedback = (float)(maximumPWMFeedback - minimumPWMFeedback) / 1440.0; //360 degree in quarter degree precision -> 1440 steps
 
 /// PWM scale for position output to servo ///
-int maximumPWMOutput = 1400; //1475 highest working, but sometimes errors
-int minimumPWMOutput = 520; //460 lowest working, but sometimes errors
+int maximumPWMOutput = 1485; //1475 highest working, but sometimes errors
+int minimumPWMOutput = 470; //460 lowest working, but sometimes errors
 double stepPWMOutput = (float)(maximumPWMOutput - minimumPWMOutput) / 1440.0; //360 degree in quarter degree precision -> 1440 steps
 
 /// scale for velocity output to servo ///
@@ -76,9 +76,6 @@ boolean firstTimeCommand = 1;
 boolean enableServo = 0;
 boolean stillmode = 0;
 boolean positive = 0;
-
-boolean cw = 1;
-int pwmTestrun = 700;
 
 /////////////////////////// FUNCTION PRECALLING ///////////////////////////
 
@@ -145,11 +142,11 @@ void readSerial() //receive characterizing prefix (+ length in 2 digit Hex, with
         enableServo = 1;
         firstTimeCommand = 0;
       }
-      for(int i = 0; i<NANO_ID*LENGTH_HEX_NUM_DIGITS; i++){ //reads and discards the bytes before the relevant bytes for respective nano id
+      for (int i = 0; i < NANO_ID * LENGTH_HEX_NUM_DIGITS; i++) { //reads and discards the bytes before the relevant bytes for respective nano id
         Serial.read();
       }
-      angularCommand[NANO_ID*LENGTH_HEX_NUM_DIGITS] = Serial.read();
-      angularCommand[NANO_ID*LENGTH_HEX_NUM_DIGITS + 1] = Serial.read();
+      angularCommand[NANO_ID * LENGTH_HEX_NUM_DIGITS] = Serial.read();
+      angularCommand[NANO_ID * LENGTH_HEX_NUM_DIGITS + 1] = Serial.read();
       while (Serial.available() > 0) {
         Serial.read();
       }
@@ -162,7 +159,7 @@ void readSerial() //receive characterizing prefix (+ length in 2 digit Hex, with
       sendFeedback();
     }
     else if (command == RECEIVE_STATIC_REQUEST) { //t
-      while (Serial.available() > 0){
+      while (Serial.available() > 0) {
         Serial.read();
       }
       Serial.print('c');

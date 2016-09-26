@@ -110,8 +110,7 @@ does delay occur while reading / can corruption be detected to get rid of delay?
 half baud rate
 
 
-
-
+clearing serial after reading necessary or is it empty at beginning of new listen anyway?
 
 
 
@@ -123,4 +122,26 @@ nano:
 
 nano send - remove id, new line character - reading of mega for specific bytes
 checksum 
+
+MEGA
+remove id when sending f/g
+
+
+a
+s
+e
+i - overwrite lastLengthCommand
+l - length command
+
+
+mega - send f to caspr when sending feedback
+
+
+nano - readStringUntil or change?
+
+
+
+
+FRIDAY NOTES
+serial input via USB to mega -> no consistency, corruption (7530 = 25000 -> 2561, 88b8 = 35000 -> 35394, 35474 on same reading (i = 0, 1)
 

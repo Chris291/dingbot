@@ -16,8 +16,7 @@
 // Defining constants
 #define FEEDBACK_FREQUENCY 20// In Hz
 #define TIME_STEP 1.0/FEEDBACK_FREQUENCY
-#define NUMBER_CONNECTED_NANOS 1
-#define INITIAL_LENGTH_COMMAND "l00000000000000000000000000000000"
+#define NUMBER_CONNECTED_NANOS 2
 #define BAUD_RATE 74880
 
 #define HEX_DIGITS_ANGLE 2
@@ -51,9 +50,9 @@ int angleChange;
 char commandNano[HEX_DIGITS_ANGLE + 1];
 char tmpSend[HEX_DIGITS_LENGTH];
 
+float lengthToAngle = 720.0 / (M_PI * RADIUS); //1.14591562747955322265625
+float angleToLength = (M_PI * RADIUS) / 45.0; // 13.9626340866088867
 
-float angleToLength = 720.0 / (M_PI * RADIUS); //1.14591562747955322265625
-float lengthToAngle = 45.0 / (M_PI * RADIUS); // 0.0716197252273559
 
 int counter = 0;
 
@@ -86,6 +85,8 @@ void setup() {
   t_ref = millis();
   sendFeedback[0] = 'f';
   //receivedCommand = INITIAL_LENGTH_COMMAND;
+  Serial.println(angleToLength, 16);
+  Serial.println(lengthToAngle, 16);
   /*
      Initialization needed:
         initialLength
@@ -97,6 +98,7 @@ void setup() {
 void loop() {
   if (Serial.available() > 0) {  //MATLAB via USB
     receivedCommand = Serial.readStringUntil('\n');
+    Serial.println(receivedCommand);
   }
 
   // Operate at roughly 20Hz time
@@ -132,7 +134,7 @@ void loop() {
           counter++;
           serialNano[i].read(); //clears the buffer of any other bytes
         }
-        
+
         if (feedbackNano[0] > ASCII_MIDDLE_POINT) {
           feedbackNano[0] -= ASCII_DIFFERENCE; //changes [0] to 0-9, A-F -> can be handled by hex conversion
           positive = 0; //detects sign of manipulated ASCII
@@ -152,10 +154,10 @@ void loop() {
         for (int j = 0; j < HEX_DIGITS_LENGTH; j++) { //fills sendFeedback array at right position, no conversion necessary
           sendFeedback[HEX_DIGITS_LENGTH * i + j + 1] = feedbackMega[j]; //any prefix while sending to MATLAB?
         }
-        Serial.print(" lengthFB ");
-        Serial.print(lengthFeedback);
-        Serial.flush();
-
+        /*   Serial.print(" lengthFB ");
+           Serial.print(lengthFeedback);
+           Serial.flush();
+        */
       }
     }
     sendFeedback[HEX_DIGITS_LENGTH * NUMBER_CONNECTED_NANOS + 1] = '\0'; //cuts off array after inputs, prevents
@@ -166,17 +168,25 @@ void loop() {
     // Set up to send command for the nano
     sendCommand[0] = RECEIVE_ANGLE; // Should be an angle
     if (receivedCommand[0] == COMMAND_LENGTH) {
+      Serial.print("l ");
       for (int i = 0; i < NUMBER_CONNECTED_NANOS; i++) {
+        Serial.print(i);
         for (int j = 0; j < HEX_DIGITS_LENGTH; j++) {
           tmpSend[j] = receivedCommand[HEX_DIGITS_LENGTH * i + j + 1]; //HEX_DIGITS_LENGTH*i gives position in array for respective ID, +1 omits command prefix
         }
-        lengthChange = strtol(tmpSend, 0, 16) - lastLengthCommand[i]; //strtol returns long int, lastLengthCommand is unsigned int (4byte - 2byte), changes will not be >int_max
-        lastLengthCommand[i] += lengthChange; //update lastLengthCommand for next command
-
-        Serial.print(" lengthChange ");
+        tmpSend[HEX_DIGITS_LENGTH] = '\0';
+        unsigned int tempSendLength = strtol(tmpSend, 0, 16);
+        Serial.print(" ");
+        Serial.print(tmpSend);
+        Serial.print(" ");
+        Serial.print(tempSendLength);
+        Serial.print(" temp  last ");
+        Serial.print(lastLengthCommand[i]);
+        lengthChange = tempSendLength - lastLengthCommand[i]; //strtol returns long int, lastLengthCommand is unsigned int (4byte - 2byte), changes will not be >int_max
+        Serial.print(" change ");
         Serial.print(lengthChange);
-        Serial.flush();
-
+        // Serial.println();
+        lastLengthCommand[i] += lengthChange; //update lastLengthCommand for next command
         //  lengthChange = 2234;
         if (lengthChange < 0) {
           positive = 0;
@@ -184,54 +194,61 @@ void loop() {
         } else {
           positive = 1;
         }
-
         angleChange = (float)lengthChange * lengthToAngle;
-
-        Serial.print(" angleChange ");
+        Serial.print(" angle ");
         Serial.print(angleChange);
-        Serial.flush();
-
         //angleChange = 160;
         //positive = 0;
         itoa(angleChange, commandNano, 16); //converts integer to string (ascii) in hex format
-
         if (commandNano[1] == '\0') { //if angular change value is <=15, only LSB is used - nano would receive this as MSB, if we don't shift
           commandNano[1] = commandNano[0]; //shifting the value to LSB position
           commandNano[0] = '0';
         }
-          commandNano[2] = '\0';
-        
+        commandNano[2] = '\0';
         if (positive && (commandNano[0] > '9')) { //this case represents letters a-f, but with a is_positive sign
           commandNano[0] -= ASCII_DIFFERENCE; //A-F after subtraction
         } else if (!positive && (commandNano[0] < 'A')) { //this case represents 0-9, but with negative sign
           commandNano[0] += ASCII_DIFFERENCE; //P-Y after addition
         }
-        Serial.print(" commandNano ");
-        Serial.print(commandNano);
-        Serial.flush();
         /* out of 4 cases, only two have to be handled here, the others are:
           is_positive and standard conversion letters 0-9 -> not to be changed
           negative and standard conversion letters a-f -> not to be changed
         */
 
+        Serial.print(" command ");
+        Serial.print(commandNano[0]);
+        Serial.print(commandNano[1]);
         for (int j = 0; j < HEX_DIGITS_ANGLE; j++) {
           sendCommand[HEX_DIGITS_ANGLE * i + j + 1] = commandNano[j];
         }
       }
       //else if other inputs from Matlab on Serial
+
+      /*   Serial.print(" lengthChange ");
+         Serial.print(lengthChange);
+         Serial.print(" angleChange ");
+         Serial.print(angleChange);
+         Serial.print(" commandNano ");
+         Serial.print(commandNano);
+         Serial.flush();
+      */
+      sendCommand[HEX_DIGITS_ANGLE * NUMBER_CONNECTED_NANOS + 1] = '\0';
+      receivedCommand[0] = '\0';
+      Serial.print(" sendCommand ");
+
+      sendCommand[0] = 'a';
+      for (int j = 0; j < (HEX_DIGITS_ANGLE * NUMBER_CONNECTED_NANOS + 1); j++) {
+        Serial1.print(sendCommand[j]);
+        Serial.print(sendCommand[j]);
+        sendCommand[0];
+      }
+      Serial1.println();
     }
-    sendCommand[HEX_DIGITS_ANGLE * NUMBER_CONNECTED_NANOS + 1] = '\0';
-    receivedCommand[0] = '\0';
-    // Serial.print(" ");
-    // Serial.print(sendCommand);
-    Serial1.println(sendCommand);
-    /*Serial1.print('a');
-      Serial1.print('A');
-      Serial1.println('0');
-    */
-    Serial1.flush();
+
     Serial.print(" end ");
-    Serial.print(millis() - t_ref);
+    Serial.println(millis() - t_ref);
+    Serial.flush();
+
   }
 
 }
