@@ -10,7 +10,7 @@
 #include <Wire.h>
 #include <math.h>
 
-#define NANO_ID 1
+#define NANO_ID 0
 
 #define FEEDBACK_FREQUENCY 40// In Hz
 #define SAMPLETIME (5000.0/FEEDBACK_FREQUENCY)
@@ -38,15 +38,15 @@ unsigned long int t_ref;
 int maximumPWMFeedback[8] = {1490, 1485, 1485, 1480, 1486, 1485, 1490, 1510};
 int minimumPWMFeedback[8] = {480, 480, 480, 470, 485, 480, 480, 485};
 int maximumPWMOutput[8] = {1485, 1485, 1480, 1470, 1480, 1480, 1485, 1500};
-int minimumPWMOutput[8] = {470, 470, 470, 470, 470, 470, 475, 475}; 
+int minimumPWMOutput[8] = {470, 470, 470, 470, 470, 470, 475, 475};
 int clockwise_max[8] = {2194, 2175, 2185, 2175, 2189, 2188, 2188, 2215};
 int clockwise_min[8] = {2094, 2082, 2090, 2079, 2089, 2088, 2088, 2117};
 int clockwise_max_speed[8] = {283, 278, 272, 269, 272, 281, 278, 278};
 int clockwise_min_speed[8] = {130, 131, 127, 127, 127, 128, 133, 130};
-int anticlockwise_max[8] = {1791, 1780, 1785, 1780, 1785, 1786, 1788, 1811};
+int anticlockwise_max[8] = {1800, 1780, 1785, 1780, 1785, 1786, 1788, 1811};
 int anticlockwise_min[8] = {1891, 1880, 1887, 1876, 1885, 1886, 1888, 1910};
-int anticlockwise_max_speed[8] = {-281, -278, -273, -269, -270, -279, -273, -279};
-int anticlockwise_min_speed[8] = {-133, -130, -132, -129, -124, -129, -128, -131};
+int anticlockwise_max_speed[8] = { -281, -278, -273, -269, -270, -279, -273, -279};
+int anticlockwise_min_speed[8] = { -133, -130, -132, -129, -124, -129, -128, -131};
 
 /////////////////////////// SERVO PARAMETERS ///////////////////////////
 
@@ -84,6 +84,16 @@ boolean positive = 0;
 
 boolean cw = 1;
 int pwmTestrun = 700;
+
+boolean newCommand = 0;
+
+int numReadings = 8;
+int feedback[8];
+int feedbackCounter;
+unsigned long int feedbackTotal;
+
+
+int servoDeg;
 
 /////////////////////////// FUNCTION PRECALLING ///////////////////////////
 
@@ -125,12 +135,20 @@ void loop() {
     t_ref = millis();
     if (enableServo) //if input has been received, transmission to servo is enabled
     {
-      updateDestinationDeg();
-      limitDegree(); //keeps the destinationDegree within 0 - 360 degree
-      if (cross == true)
-      {
-        crossing(); //
-        quitCrossing();
+      servoDeg = readPositionFeedback();
+      currentDeg = servoDeg;
+      Serial.println();
+      Serial.print(servoDeg);
+      Serial.print(" servo  destination  ");
+      if (newCommand) {
+        updateDestinationDeg();
+        limitDegree(); //keeps the destinationDegree within 0 - 360 degree
+        if (cross == true)
+        {
+          crossing(); //
+          quitCrossing();
+        }
+        newCommand = 0;
       }
       ctrl_motor(); //transmits the output signal towards the motor
     }
@@ -144,7 +162,7 @@ void readSerial() //receive characterizing prefix (+ length in 2 digit Hex, with
     strReceived = Serial.readStringUntil('\n');
     char command = strReceived[0];
     if (command == RECEIVE_ANGLE_CMD) {
-      //Serial.println('a');
+      newCommand = 1;
       if (firstTimeCommand) {
         enableServo = 1;
         firstTimeCommand = 0;
@@ -182,13 +200,13 @@ void readSerial() //receive characterizing prefix (+ length in 2 digit Hex, with
       Serial.println('c');
       Serial.flush();
       delayMicroseconds(10);
-    
+
       digitalWrite(MOTOR_PIN, HIGH);
       delayMicroseconds(pwmTestrun);
       digitalWrite(MOTOR_PIN, LOW);
       delayMicroseconds(3000 - pwmTestrun);
 
-      }
+    }
   }
   // ADD CALIBRATION LATER
 }
@@ -223,14 +241,21 @@ int readPositionFeedback()
   if ((servoPWM < 300) || (servoPWM > 2000)) { //results outside these boundaries are faulty
     servoPWM = lastPWM;
   }
-  return inverseMapping(servoPWM); //converts the pwm value to an angle and returns it
+  feedbackTotal -= feedback[feedbackCounter];
+  feedback[feedbackCounter] = inverseMapping(servoPWM); //converts the pwm value to an angle
+  feedbackTotal += feedback[feedbackCounter];
+  feedbackCounter++;
+
+  if (feedbackCounter >= numReadings) {
+    feedbackCounter = 0;
+  }
+  return (feedbackTotal / numReadings);
+
 }
 
 void updateDestinationDeg() { //updates the destination degree from the serial monitor (if no input, no change)
-  int servoDeg = readPositionFeedback();
-  currentDeg = servoDeg;
-  if (initialDeg < 0)
-  { //first time this method is entered
+
+  if (initialDeg < 0) { //first time this method is entered
     initialDeg = servoDeg;
   }
   if (angularChangeReceived != 0)
@@ -238,7 +263,7 @@ void updateDestinationDeg() { //updates the destination degree from the serial m
     destinationDeg = servoDeg + angularChangeReceived; // update the destination degree by using current position plus requested angular change
     angularChangeReceived = 0;
   }
-
+  Serial.print(destinationDeg);
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void limitDegree() { //keeps the destinationDegree within 0 - 360 degree, e.g. -100 for example 375 will map to 15, -100 will map to 260
@@ -252,10 +277,12 @@ void limitDegree() { //keeps the destinationDegree within 0 - 360 degree, e.g. -
     destinationDeg = fmod(destinationDeg, 1440); //modulo takes out all integral multiples of 360 to achieve correct mapping    //Serial.println("crossLeft");
     cross = true;
   }
+  Serial.print(" destinationDeg limited ");
+  Serial.print(destinationDeg);
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void crossing() {
-  int Currentpos = readPositionFeedback();
+  //int Currentpos = readPositionFeedback();
   if (check != 1) {
     if (positive == 0) // From right
     { /*
@@ -301,7 +328,7 @@ void crossing() {
 }
 
 void quitCrossing() {
-  int Currentpos = readPositionFeedback();
+  int Currentpos = servoDeg;
   if (positive == 0) // From right
   {
     if ((Currentpos < (1440 - DELTA)) && (Currentpos > 720 )) {
@@ -336,11 +363,15 @@ void servoPulse(int servoPin, int pulseWidth) {
   delayMicroseconds(pulseWidth);
   digitalWrite(servoPin, LOW);
   delayMicroseconds(3000 - pulseWidth);
+  Serial.print(" servoPWM ");
+  Serial.print(pulseWidth);
 }
 
 void mapping() { // maps the calculated destinationDeg onto the pwm_output scale
   destinationPWM = minimumPWMOutput[NANO_ID] + destinationDeg * stepPWMOutput;
   //deadzone();
+  Serial.print(" destinationPWM ");
+  Serial.print(destinationPWM);
   control();
 }
 
