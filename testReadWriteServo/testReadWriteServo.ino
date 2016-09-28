@@ -10,6 +10,12 @@ String strReceived;
 unsigned long int t_ref;
 char tmp[4];
 
+
+int numReadings = 8;
+int feedback[8];
+int feedbackCounter;
+unsigned long int feedbackTotal;
+
 void setup() {
   Serial.begin(74880);
   Serial.println("SETUP");
@@ -24,26 +30,35 @@ void loop() {
     cmdPWM = strtol(tmp, 0, 10);
   }
 
-  digitalWrite(MOTOR_PIN, HIGH);
-  delayMicroseconds(cmdPWM);
-  digitalWrite(MOTOR_PIN, LOW);
-  delayMicroseconds(3000 - cmdPWM);
-
-
   if ((millis() - t_ref) > TIME_STEP * 1000) {
     t_ref = millis();
+
+    digitalWrite(MOTOR_PIN, HIGH);
+    delayMicroseconds(cmdPWM);
+    digitalWrite(MOTOR_PIN, LOW);
+    delayMicroseconds(3000 - cmdPWM);
 
     lastPWM = servoPWM;
     digitalWrite(MOTOR_PIN, HIGH);
     delayMicroseconds(50);
     digitalWrite(MOTOR_PIN, LOW);
-    servoPWM = pulseIn(MOTOR_PIN, HIGH, 2000); //triggers servo, then measures time until next HIGH signal, cuts off after 3000us or 3ms
+    servoPWM = pulseIn(MOTOR_PIN, HIGH, 2000); //triggers servo, then measures time until next HIGH signal, cuts off after 2000us or 2ms
 
     if ((servoPWM < 300) || (servoPWM > 2000)) { //results outside these boundaries are faulty
       servoPWM = lastPWM;
     }
+    feedbackTotal -= feedback[feedbackCounter];
+    feedback[feedbackCounter] = servoPWM; //converts the pwm value to an angle
+    feedbackTotal += feedback[feedbackCounter];
+    feedbackCounter++;
+
+    if (feedbackCounter >= numReadings) {
+      feedbackCounter = 0;
+    }
+    servoPWM = (int) (feedbackTotal / numReadings) ;
+
     Serial.print(cmdPWM);
-    Serial.print(" cmd fb ");    
+    Serial.print(" cmd fb ");
     Serial.print(servoPWM); //converts the pwm value to an angle and returns it
     Serial.print("     diff ");
     Serial.println(servoPWM - cmdPWM);
